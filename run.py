@@ -132,7 +132,7 @@ def build(env):
             else:
                 agent_action[ind].append(1)
 
-def my_controller(env):
+def my_controller(env, number_of_agents):
     global answer_build
     global agent_action
     global current_pos
