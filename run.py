@@ -24,7 +24,7 @@ def heuristic(x1, y1, x2, y2):
 class Node:
     
     def __init__(self, env, input_x, input_y, orientation, finish_x, finish_y, input_g):
-        self.id = env.width * env.height * orientation + input_y * env.width + input_x
+        self.id = env.width * env.height * orientation + input_y * env.height + input_x
         self.x = input_x
         self.y = input_y
         self.dest = orientation
@@ -45,25 +45,26 @@ current_pos = []
 def build(env):
     global agent_action
     last_visit = []
-    for x in range(env.width):
-        last_visit.append([-1] * env.height)
+    for x in range(env.height):
+        last_visit.append([-1] * env.width)
     
     agent_action = []
-    
     for ind in range(env.get_num_agents()):
         agent_action.append([])
+    
+    for ind in range(env.get_num_agents()):
         previous = []
         distance = []
         for dest in range(4):
             previous.append([])
             distance.append([])
         for dest in range(4):
-            for x in range(env.width):
+            for x in range(env.height):
                 previous[dest].append([])
-                distance[dest].append([-1] * env.height)
+                distance[dest].append([-1] * env.width)
         for dest in range(4):
-            for x in range(env.width):
-                for y in range(env.height):
+            for x in range(env.height):
+                for y in range(env.width):
                     previous[dest][x].append([-1, -1, -1])
 
         agent = env.agents[ind]
