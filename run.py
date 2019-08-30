@@ -230,7 +230,7 @@ while True:
         #####################################################################
         # Compute the action for this step by using the previously 
         # defined controlle
-        action = my_controller(observation, number_of_agents)
+        action = my_controller(local_env, number_of_agents)
 
         # Perform the chosen action on the environment.
         # The action gets applied to both the local and the remote copy 
