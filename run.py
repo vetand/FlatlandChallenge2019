@@ -3,8 +3,6 @@ from flatland.envs.observations import TreeObsForRailEnv
 from flatland.envs.predictions import ShortestPathPredictorForRailEnv
 import heapq
 import numpy as np
-from flatland.envs.generators import complex_rail_generator
-from flatland.envs.rail_env import RailEnv
 
 #####################################################################
 # Instantiate a Remote Client
