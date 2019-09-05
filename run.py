@@ -22,8 +22,7 @@ class Map:
         self.height = -1
         self.width = -1
 
-    def getMapOptions(self):
-        global env
+    def getMapOptions(self, env):
         self.height = env.height  
         self.width = env.width
 
@@ -36,8 +35,7 @@ class Agent:
         self.fin_j = -1
         self.agentId = agentId
 
-    def getAgent(self):
-        global env
+    def getAgent(self, env):
         self.start_i = env.agents[self.agentId].position[0]
         self.start_j = env.agents[self.agentId].position[1]
 
@@ -53,8 +51,7 @@ class Agents:
         self.allAgents = []
         self.size = 0
 
-    def getAgents(self):
-        global env
+    def getAgents(self, env):
         self.size = env.get_num_agents()
 
 
@@ -111,24 +108,18 @@ class Entry:
 
 class ISearch:
     def __init__(self):
-        global env
         self.lppath = []
         self.hppath = []
-        self.reservations = [set()]
+        self.reservations = dict()
         self.maxTime = 400
 
     def startAllAgents(self, map, agents):
-        self.initReservations(map)
 
         for i in range(agents.size):
             self.startSearch(map, agents.allAgents[i])
 
-
-    def initReservations(self, map):
-        self.reservations = sets = [set() for i in range(self.maxTime)]
-
     def checkReservation(self, i, j, t):
-        return ((i, j) in self.reservations[t])
+        return ((t, i, j) in self.reservations)
 
     def computeHFromCellToCell(self, i1, j1, i2, j2):
         return abs(i1 - i2) + abs(j1 - j2)
@@ -211,10 +202,8 @@ class ISearch:
 
         if pathFound:
             pathLength = finNode.g
-            self.makePrimaryPath(finNode, startNode)
+            self.makePrimaryPath(finNode, startNode, agent)
             self.makeFlatlandFriendlyPath(agent)
-        else:
-            print(1 / 0) # trigger for unfound path
 
     def findSuccessors(self, curNode, map, agent):
                 global env
@@ -243,17 +232,17 @@ class ISearch:
                                         successors.append(scNode)
                 return successors
 
-    def makePrimaryPath(self, curNode, startNode):
+    def makePrimaryPath(self, curNode, startNode, agent):
         for i in range(curNode.t, self.maxTime):
-            self.reservations[i].add((curNode.i, curNode.j))
+            self.reservations[(i, curNode.i, curNode.j)] = agent.agentId
 
         while curNode != startNode:
             self.lppath.append(curNode)
-            self.reservations[curNode.t].add((curNode.i, curNode.j))
+            self.reservations[(curNode.t, curNode.i, curNode.j)] = agent.agentId
             curNode = curNode.parent
 
         self.lppath.append(curNode)
-        self.reservations[curNode.t].add((curNode.i, curNode.j))
+        self.reservations[(curNode.t, curNode.i, curNode.j)] = agent.agentId
 
         self.lppath = self.lppath[::-1]
 
@@ -277,24 +266,29 @@ class solver:
         self.agents = Agents()
         self.search = ISearch()
 
-    def build(self):
-        global env
+    def build(self, env):
         self.answer_build = True
         self.current_pos = [0] * env.get_num_agents()
         self.agent_action = []
-        self.map.getMapOptions()
+        self.map.getMapOptions(env)
 
-        self.agents.getAgents()
+        self.agents.getAgents(env)
 
         for i in range(self.agents.size):
             agent = Agent(i)
-            agent.getAgent()
+            agent.getAgent(env)
             self.agents.allAgents.append(agent)
             self.agent_action.append([])
 
         self.search.startAllAgents(self.map, self.agents)
         
-    def print_step(self):
+    def get_penalty(self, env):
+        answer = 0
+        for ind in range(env.get_num_agents()):
+            answer += len(self.agent_action[ind])
+        return answer
+        
+    def print_step(self, env):
         _action = {}
         for ind in range(env.get_num_agents()):
             if (self.current_pos[ind] < len(self.agent_action[ind])):
@@ -302,10 +296,10 @@ class solver:
                 self.current_pos[ind] += 1
         return _action
     
-def my_controller(env, number_of_agents):
+def my_controller(env, number):
     if (path_finder.answer_build == False):
-        path_finder.build()
-    _action = path_finder.print_step()
+        path_finder.build(env)
+    _action = path_finder.print_step(env)
     return _action
 
 path_finder = solver()
