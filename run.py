@@ -5,7 +5,6 @@ import heapq
 import numpy as np
 from flatland.envs.generators import complex_rail_generator
 from flatland.envs.rail_env import RailEnv
-from flatland.utils.rendertools import RenderTool
 
 #####################################################################
 # Instantiate a Remote Client
