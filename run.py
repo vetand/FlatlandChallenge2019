@@ -330,9 +330,6 @@ while True:
     # You can also pass your custom observation_builder object
     # to allow you to have as much control as you wish 
     # over the observation of your choice.
-    observation = remote_client.env_create(
-                    obs_builder_object=my_observation_builder
-                )
     if not observation:
         #
         # If the remote_client returns False on a `env_create` call,
