@@ -113,10 +113,10 @@ class ISearch:
         self.reservations = dict()
         self.maxTime = 400
 
-    def startAllAgents(self, map, agents):
+    def startAllAgents(self, map, agents, env):
 
         for i in range(agents.size):
-            self.startSearch(map, agents.allAgents[i])
+            self.startSearch(map, agents.allAgents[i], env)
 
     def checkReservation(self, i, j, t):
         return ((t, i, j) in self.reservations)
@@ -124,7 +124,7 @@ class ISearch:
     def computeHFromCellToCell(self, i1, j1, i2, j2):
         return abs(i1 - i2) + abs(j1 - j2)
 
-    def startSearch(self, map, agent):
+    def startSearch(self, map, agent, env):
 
         startNode = Node(agent.start_i, agent.start_j, agent.dir)
         startNode.h = self.computeHFromCellToCell(agent.start_i, agent.start_j, agent.fin_i, agent.fin_j)
@@ -157,7 +157,7 @@ class ISearch:
                 openCopy.pop((curNode.i, curNode.j, curNode.dir, curNode.t))
                 closed.add(curNode)
 
-                successors = self.findSuccessors(curNode, map, agent)
+                successors = self.findSuccessors(curNode, map, agent, env)
                 for i in range(len(successors)):
                     scNode = successors[i]
                     foundInClosed = False
@@ -205,8 +205,7 @@ class ISearch:
             self.makePrimaryPath(finNode, startNode, agent)
             self.makeFlatlandFriendlyPath(agent)
 
-    def findSuccessors(self, curNode, map, agent):
-                global env
+    def findSuccessors(self, curNode, map, agent, env):
                 position = [curNode.i, curNode.j]
                 available = env.rail.get_transitions(*position, curNode.dir)
                 inter_answer = []
@@ -280,7 +279,7 @@ class solver:
             self.agents.allAgents.append(agent)
             self.agent_action.append([])
 
-        self.search.startAllAgents(self.map, self.agents)
+        self.search.startAllAgents(self.map, self.agents, env)
         
     def get_penalty(self, env):
         answer = 0
