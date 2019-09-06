@@ -120,6 +120,9 @@ class ISearch:
 
     def checkReservation(self, i, j, t):
         return ((t, i, j) in self.reservations)
+        
+    def get_occupator(self, i, j, t):
+        return self.reservations[(t, i, j)]
 
     def computeHFromCellToCell(self, i1, j1, i2, j2):
         return abs(i1 - i2) + abs(j1 - j2)
@@ -227,7 +230,11 @@ class ISearch:
                         if (not self.checkReservation(scNode.i, scNode.j, scNode.t)):
                                 if (self.checkReservation(scNode.i, scNode.j, scNode.t + 1)):
                                     continue
-                                if (not (self.checkReservation(scNode.i, scNode.j, curNode.t) and self.checkReservation(curNode.i, curNode.j, scNode.t))):
+                                if (not self.checkReservation(scNode.i, scNode.j, curNode.t) or not self.checkReservation(curNode.i, curNode.j, scNode.t)):
+                                    successors.append(scNode)
+                                    continue
+                                edge_conflict = (self.get_occupator(scNode.i, scNode.j, curNode.t) == self.get_occupator(curNode.i, curNode.j, scNode.t))
+                                if (not edge_conflict):
                                         successors.append(scNode)
                 return successors
 
