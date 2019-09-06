@@ -3,6 +3,7 @@ from flatland.envs.observations import TreeObsForRailEnv
 from flatland.envs.predictions import ShortestPathPredictorForRailEnv
 import heapq
 import numpy as np
+import random
 
 #####################################################################
 # Instantiate a Remote Client
@@ -105,6 +106,8 @@ class Entry:
     def __eq__(self, other):
         return self.priority == other.priority
 
+def global_heuristic(x1, y1, x2, y2):
+    return abs(x2 - x1) + abs(y2 - y1)
 
 class ISearch:
     def __init__(self):
@@ -113,21 +116,21 @@ class ISearch:
         self.reservations = dict()
         self.maxTime = 400
 
-    def startAllAgents(self, map, agents, env):
+    def startAllAgents(self, map, agents, env, agent_action):
 
         for i in range(agents.size):
-            self.startSearch(map, agents.allAgents[i], env)
+            self.startSearch(map, agents.allAgents[i], env, agent_action)
 
     def checkReservation(self, i, j, t):
         return ((t, i, j) in self.reservations)
-        
+    
     def get_occupator(self, i, j, t):
         return self.reservations[(t, i, j)]
 
     def computeHFromCellToCell(self, i1, j1, i2, j2):
         return abs(i1 - i2) + abs(j1 - j2)
 
-    def startSearch(self, map, agent, env):
+    def startSearch(self, map, agent, env, agent_action):
 
         startNode = Node(agent.start_i, agent.start_j, agent.dir)
         startNode.h = self.computeHFromCellToCell(agent.start_i, agent.start_j, agent.fin_i, agent.fin_j)
@@ -206,7 +209,7 @@ class ISearch:
         if pathFound:
             pathLength = finNode.g
             self.makePrimaryPath(finNode, startNode, agent)
-            self.makeFlatlandFriendlyPath(agent)
+            self.makeFlatlandFriendlyPath(agent, agent_action)
 
     def findSuccessors(self, curNode, map, agent, env):
                 position = [curNode.i, curNode.j]
@@ -229,7 +232,15 @@ class ISearch:
                         scNode.t = curNode.t + 1
                         if (not self.checkReservation(scNode.i, scNode.j, scNode.t)):
                                 if (self.checkReservation(scNode.i, scNode.j, scNode.t + 1)):
-                                    continue
+                                    current_number = agent.agentId
+                                    other_number = self.get_occupator(scNode.i, scNode.j, scNode.t + 1)
+                                    if (current_number > other_number):
+                                        continue
+                                if (self.checkReservation(scNode.i, scNode.j, scNode.t - 1)):
+                                    current_number = agent.agentId
+                                    other_number = self.get_occupator(scNode.i, scNode.j, scNode.t - 1)
+                                    if (current_number < other_number):
+                                        continue
                                 if (not self.checkReservation(scNode.i, scNode.j, curNode.t) or not self.checkReservation(curNode.i, curNode.j, scNode.t)):
                                     successors.append(scNode)
                                     continue
@@ -252,25 +263,26 @@ class ISearch:
 
         self.lppath = self.lppath[::-1]
 
-    def makeFlatlandFriendlyPath(self, agent):
+    def makeFlatlandFriendlyPath(self, agent, agent_action):
         for ind in range(1, len(self.lppath)):
             if (self.lppath[ind].i == self.lppath[ind - 1].i and self.lppath[ind].j == self.lppath[ind - 1].j):
-                path_finder.agent_action[agent.agentId].append(4)
+                agent_action[agent.agentId].append(4)
             elif abs(self.lppath[ind].dir - self.lppath[ind - 1].dir) % 2 == 0:
-                path_finder.agent_action[agent.agentId].append(2)
+                agent_action[agent.agentId].append(2)
             elif ((self.lppath[ind - 1].dir + 1) % 4 == self.lppath[ind].dir):
-                path_finder.agent_action[agent.agentId].append(3)
+                agent_action[agent.agentId].append(3)
             else:
-                path_finder.agent_action[agent.agentId].append(1)
+                agent_action[agent.agentId].append(1)
 
 class solver:
-    def __init__(self):
+    def __init__(self, type):
         self.answer_build = False
         self.agent_action = []
         self.current_pos = []
         self.map = Map()
         self.agents = Agents()
         self.search = ISearch()
+        self.type = type
 
     def build(self, env):
         self.answer_build = True
@@ -280,13 +292,46 @@ class solver:
 
         self.agents.getAgents(env)
 
-        for i in range(self.agents.size):
-            agent = Agent(i)
-            agent.getAgent(env)
-            self.agents.allAgents.append(agent)
-            self.agent_action.append([])
+        if (self.type == "as usual"):
+            for i in range(self.agents.size):
+                agent = Agent(i)
+                agent.getAgent(env)
+                self.agents.allAgents.append(agent)
+                self.agent_action.append([])
+        
+        if (self.type == "reversed"):
+            for i in range(self.agents.size - 1, -1, -1):
+                agent = Agent(i)
+                agent.getAgent(env)
+                self.agents.allAgents.append(agent)
+                self.agent_action.append([])
+                
+        if (self.type == "scientific"):
+            queue = []
+            for ind in range(self.agents.size):
+                x1, y1 = env.agents[ind].position
+                x2, y2 = env.agents[ind].target
+                potential = global_heuristic(x1, y1, x2, y2)
+                queue.append([potential, ind])
+            queue.sort()
+            for i in range(self.agents.size):
+                agent = Agent(queue[i][1])
+                agent.getAgent(env)
+                self.agents.allAgents.append(agent)
+                self.agent_action.append([])
+            
+        if (self.type == "random"):
+            queue = []
+            for ind in range(self.agents.size):
+                queue.append(ind)
+            random.shuffle(queue)
+            for i in range(self.agents.size):
+                agent = Agent(queue[i])
+                agent.getAgent(env)
+                self.agents.allAgents.append(agent)
+                self.agent_action.append([])
 
-        self.search.startAllAgents(self.map, self.agents, env)
+        self.search.startAllAgents(self.map, self.agents, env, self.agent_action)
         
     def get_penalty(self, env):
         answer = 0
@@ -303,9 +348,23 @@ class solver:
         return _action
     
 def my_controller(env, number):
-    if (path_finder.answer_build == False):
-        path_finder.build(env)
-    _action = path_finder.print_step(env)
+    global best
+    if (path_finder_1.answer_build == False):
+        path_finder_1.build(env)
+        path_finder_2.build(env)
+        path_finder_3.build(env)
+        path_finder_4.build(env)
+        minimum = min(min(path_finder_1.get_penalty(env), path_finder_2.get_penalty(env)), min(path_finder_3.get_penalty(env), path_finder_4.get_penalty(env)))
+        if (path_finder_1.get_penalty(env) == minimum):
+            best = path_finder_1
+        if (path_finder_2.get_penalty(env) == minimum):
+            best = path_finder_2
+        if (path_finder_3.get_penalty(env) == minimum):
+            best = path_finder_3
+        if (path_finder_4.get_penalty(env) == minimum):
+            best = path_finder_4
+
+    _action = best.print_step(env)
     return _action
 
 my_observation_builder = TreeObsForRailEnv(
@@ -313,7 +372,11 @@ my_observation_builder = TreeObsForRailEnv(
                                 predictor=ShortestPathPredictorForRailEnv()
                             )
 
-path_finder = solver()
+path_finder_1 = solver("as usual")
+path_finder_2 = solver("reversed")
+path_finder_3 = solver("scientific")
+path_finder_4 = solver("random")
+best = path_finder_1
 
 #####################################################################
 # Main evaluation loop
@@ -324,7 +387,11 @@ evaluation_number = 0
 while True:
 
     evaluation_number += 1
-    path_finder = solver()
+    path_finder_1 = solver("as usual")
+    path_finder_2 = solver("reversed")
+    path_finder_3 = solver("scientific")
+    path_finder_4 = solver("random")
+    best = path_finder_1
     # Switch to a new evaluation environemnt
     # 
     # a remote_client.env_create is similar to instantiating a 
