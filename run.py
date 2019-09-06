@@ -301,12 +301,12 @@ def my_controller(env, number):
     _action = path_finder.print_step(env)
     return _action
 
-path_finder = solver()
-
 my_observation_builder = TreeObsForRailEnv(
                                 max_depth=3,
                                 predictor=ShortestPathPredictorForRailEnv()
                             )
+
+path_finder = solver()
 
 #####################################################################
 # Main evaluation loop
@@ -317,7 +317,7 @@ evaluation_number = 0
 while True:
 
     evaluation_number += 1
-    path_finder.answer_build = False
+    path_finder = solver()
     # Switch to a new evaluation environemnt
     # 
     # a remote_client.env_create is similar to instantiating a 
