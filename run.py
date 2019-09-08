@@ -4,7 +4,6 @@ from flatland.envs.predictions import ShortestPathPredictorForRailEnv
 import heapq
 import numpy as np
 import random
-random.seed(47)
 
 #####################################################################
 # Instantiate a Remote Client
@@ -354,16 +353,20 @@ def my_controller(env, number):
         path_finder_1.build(env)
         path_finder_2.build(env)
         path_finder_3.build(env)
-        path_finder_4.build(env)
-        minimum = min(min(path_finder_1.get_penalty(env), path_finder_2.get_penalty(env)), min(path_finder_3.get_penalty(env), path_finder_4.get_penalty(env)))
+        minimum_of_rand = 1000000000
+        for ind in range(75):
+            randomic[ind].build(env)
+            minimum_of_rand = min(minimum_of_rand, randomic[ind].get_penalty(env))
+        minimum = min(min(path_finder_1.get_penalty(env), path_finder_2.get_penalty(env)), min(path_finder_3.get_penalty(env), minimum_of_rand))
         if (path_finder_1.get_penalty(env) == minimum):
             best = path_finder_1
         if (path_finder_2.get_penalty(env) == minimum):
             best = path_finder_2
         if (path_finder_3.get_penalty(env) == minimum):
             best = path_finder_3
-        if (path_finder_4.get_penalty(env) == minimum):
-            best = path_finder_4
+        for ind in range(75):
+            if (randomic[ind].get_penalty(env) == minimum):
+                best = randomic[ind]
 
     _action = best.print_step(env)
     return _action
@@ -376,7 +379,9 @@ my_observation_builder = TreeObsForRailEnv(
 path_finder_1 = solver("as usual")
 path_finder_2 = solver("reversed")
 path_finder_3 = solver("scientific")
-path_finder_4 = solver("random")
+randomic = []
+for ind in range(75):
+    randomic.append(solver("random"))
 best = path_finder_1
 
 #####################################################################
@@ -391,7 +396,9 @@ while True:
     path_finder_1 = solver("as usual")
     path_finder_2 = solver("reversed")
     path_finder_3 = solver("scientific")
-    path_finder_4 = solver("random")
+    randomic = []
+    for ind in range(75):
+        randomic.append(solver("random"))
     best = path_finder_1
     # Switch to a new evaluation environemnt
     # 
