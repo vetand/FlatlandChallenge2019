@@ -4,6 +4,7 @@ from flatland.envs.predictions import ShortestPathPredictorForRailEnv
 import heapq
 import numpy as np
 import random
+random.seed(30)
 
 #####################################################################
 # Instantiate a Remote Client
@@ -210,6 +211,8 @@ class ISearch:
             pathLength = finNode.g
             self.makePrimaryPath(finNode, startNode, agent)
             self.makeFlatlandFriendlyPath(agent, agent_action)
+        else:
+            self.broken(agent, agent_action)
 
     def findSuccessors(self, curNode, map, agent, env):
                 position = [curNode.i, curNode.j]
@@ -273,6 +276,10 @@ class ISearch:
                 agent_action[agent.agentId].append(3)
             else:
                 agent_action[agent.agentId].append(1)
+
+    def broken(self, agent, agent_action):
+        for ind in range(500):
+            agent_action[agent.agentId].append(4)
 
 class solver:
     def __init__(self, type):
@@ -354,7 +361,7 @@ def my_controller(env, number):
         path_finder_2.build(env)
         path_finder_3.build(env)
         minimum_of_rand = 1000000000
-        for ind in range(75):
+        for ind in range(125):
             randomic[ind].build(env)
             minimum_of_rand = min(minimum_of_rand, randomic[ind].get_penalty(env))
         minimum = min(min(path_finder_1.get_penalty(env), path_finder_2.get_penalty(env)), min(path_finder_3.get_penalty(env), minimum_of_rand))
@@ -364,7 +371,7 @@ def my_controller(env, number):
             best = path_finder_2
         if (path_finder_3.get_penalty(env) == minimum):
             best = path_finder_3
-        for ind in range(75):
+        for ind in range(125):
             if (randomic[ind].get_penalty(env) == minimum):
                 best = randomic[ind]
 
@@ -380,7 +387,7 @@ path_finder_1 = solver("as usual")
 path_finder_2 = solver("reversed")
 path_finder_3 = solver("scientific")
 randomic = []
-for ind in range(75):
+for ind in range(125):
     randomic.append(solver("random"))
 best = path_finder_1
 
@@ -397,7 +404,7 @@ while True:
     path_finder_2 = solver("reversed")
     path_finder_3 = solver("scientific")
     randomic = []
-    for ind in range(75):
+    for ind in range(125):
         randomic.append(solver("random"))
     best = path_finder_1
     # Switch to a new evaluation environemnt
