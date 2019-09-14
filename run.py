@@ -1,6 +1,7 @@
 from flatland.evaluators.client import FlatlandRemoteClient
 from flatland.envs.observations import TreeObsForRailEnv
 from flatland.envs.predictions import ShortestPathPredictorForRailEnv
+from queue import Queue
 import heapq
 import numpy as np
 import random
