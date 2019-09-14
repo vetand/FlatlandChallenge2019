@@ -1,8 +1,8 @@
 from flatland.evaluators.client import FlatlandRemoteClient
 from flatland.envs.observations import TreeObsForRailEnv
 from flatland.envs.predictions import ShortestPathPredictorForRailEnv
-from queue import Queue
 import heapq
+from queue import Queue
 import numpy as np
 import random
 random.seed(30)
@@ -24,10 +24,13 @@ class Map:
     def __init__(self):
         self.height = -1
         self.width = -1
+        self.start_points = set()
 
     def getMapOptions(self, env):
         self.height = env.height  
         self.width = env.width
+        for ind in range(env.get_num_agents()):
+            self.start_points.add(env.agents[ind].position)
 
 
 class Agent:
@@ -56,60 +59,7 @@ class Agents:
 
     def getAgents(self, env):
         self.size = env.get_num_agents()
-        
-class Node_h:
-    
-    def __init__(self, x, y, dir, time):
-        self.i = x
-        self.j = y
-        self.dir = dir
-        self.time = time
-        
-class global_H:
-    
-    def __init__(self, env):
-        self.database = dict()
-        self.env = env
-        for ind in range(env.get_num_agents()):
-            self.start_agent(ind)
-        
-    def get_neighbors(self, curNode):
-        available = env.rail.get_transitions(*[curNode.i, curNode.j], curNode.dir)
-        answer = []
-        if (available[0] == True):
-            answer.append(Node_h(curNode.i - 1, curNode.j, 0, curNode.time + 1))
-        if (available[1] == True):
-            answer.append(Node_h(curNode.i, curNode.j + 1, 1, curNode.time + 1))
-        if (available[2] == True):
-            answer.append(Node_h(curNode.i + 1, curNode.j, 2, curNode.time + 1))
-        if (available[3] == True):
-            answer.append(Node_h(curNode.i, curNode.j - 1, 3, curNode.time + 1))
-        return answer
-        
-    def get_dir(self, position):
-        available = []
-        for dest in range(4):
-            available.append(env.rail.get_transitions(*position, dest))
-            if (sum(available[dest]) > 0):
-                return dest
-        
-        
-    def start_agent(self, number):
-        
-        start = Node_h(self.env.agents[number].target[0], self.env.agents[number].target[1], self.get_dir(self.env.agents[number].target), 0)
-        queue = Queue()
-        queue.put(start)
-        while (not queue.empty()):
-            current = queue.get()
-            candidates = self.get_neighbors(current)
-            for node in candidates:
-                if ((number, current.i, current.j, (node.dir + 2) % 4) not in self.database):
-                    self.database[(number, current.i, current.j, (node.dir + 2) % 4)] = current.time
-                    queue.put(node)
-                    
-    def get_heuristic(self, agentId, x, y, dir):
-        if (agentId, x, y, dir) in self.database:
-            return self.database[(agentId, x, y, dir)]
+
 
 class Node:
     def __init__(self, i, j, dir):
@@ -164,17 +114,75 @@ class Entry:
 def global_heuristic(x1, y1, x2, y2):
     return abs(x2 - x1) + abs(y2 - y1)
 
-class ISearch:
-    def __init__(self):
-        self.lppath = []
-        self.hppath = []
-        self.reservations = dict()
-        self.maxTime = 400
+class Node_h:
+    
+    def __init__(self, x, y, dir, time):
+        self.i = x
+        self.j = y
+        self.dir = dir
+        self.time = time
+        
+class global_H:
+    
+    def __init__(self, env):
+        self.database = dict()
+        self.env = env
+        for ind in range(env.get_num_agents()):
+            self.start_agent(ind)
+        
+    def get_neighbors(self, curNode):
+        available = env.rail.get_transitions(*[curNode.i, curNode.j], curNode.dir)
+        answer = []
+        if (available[0] == True):
+            answer.append(Node_h(curNode.i - 1, curNode.j, 0, curNode.time + 1))
+        if (available[1] == True):
+            answer.append(Node_h(curNode.i, curNode.j + 1, 1, curNode.time + 1))
+        if (available[2] == True):
+            answer.append(Node_h(curNode.i + 1, curNode.j, 2, curNode.time + 1))
+        if (available[3] == True):
+            answer.append(Node_h(curNode.i, curNode.j - 1, 3, curNode.time + 1))
+        return answer
+        
+    def get_dir(self, position):
+        available = []
+        for dest in range(4):
+            available.append(env.rail.get_transitions(*position, dest))
+            if (sum(available[dest]) > 0):
+                return dest
+        
+        
+    def start_agent(self, number):
+        
+        start = Node_h(self.env.agents[number].target[0], self.env.agents[number].target[1], self.get_dir(self.env.agents[number].target), 0)
+        queue = Queue()
+        queue.put(start)
+        while (not queue.empty()):
+            current = queue.get()
+            candidates = self.get_neighbors(current)
+            for node in candidates:
+                if ((number, current.i, current.j, (node.dir + 2) % 4) not in self.database):
+                    self.database[(number, current.i, current.j, (node.dir + 2) % 4)] = current.time
+                    queue.put(node)
+                    
+    def get_heuristic(self, agentId, x, y, dir):
+        if (agentId, x, y, dir) in self.database:
+            return self.database[(agentId, x, y, dir)]
 
-    def startAllAgents(self, map, agents, env, agent_action):
+class ISearch:
+    def __init__(self, env):
+        self.lppath = []
+        for ind in range(env.get_num_agents()):
+            self.lppath.append([])
+        self.reservations = dict()
+        self.maxTime = 300
+
+    def startAllAgents(self, map, agents, env, agent_action, start_wait):
 
         for i in range(agents.size):
-            self.startSearch(map, agents.allAgents[i], env, agent_action)
+            agent = agents.allAgents[i]
+            for time in range(start_wait[i] + 1):
+                self.reservations[(time, agent.start_i, agent.start_j)] = agent.agentId
+            self.startSearch(map, agents.allAgents[i], env, agent_action, start_wait[agents.allAgents[i].agentId])
 
     def checkReservation(self, i, j, t):
         return ((t, i, j) in self.reservations)
@@ -185,16 +193,16 @@ class ISearch:
     def computeHFromCellToCell(self, i1, j1, i2, j2):
         return abs(i1 - i2) + abs(j1 - j2)
 
-    def startSearch(self, map, agent, env, agent_action):
+    def startSearch(self, map, agent, env, agent_action, start_wait):
 
         startNode = Node(agent.start_i, agent.start_j, agent.dir)
         startNode.h = heuristic.get_heuristic(agent.agentId, startNode.i, startNode.j, startNode.dir)
+        #startNode.h = self.computeHFromCellToCell(agent.start_i, agent.start_j, agent.fin_i, agent.fin_j)
         startNode.f = startNode.g + startNode.h
+        startNode.t = start_wait
+        
 
         finNode = Node(agent.fin_i, agent.fin_j, agent.dir)
-
-        self.lppath = []
-        self.hppath = []
 
         openHeap = []
         openCopy = dict()
@@ -209,6 +217,7 @@ class ISearch:
         while (not pathFound) and len(openHeap) > 0:
 
             curNode = (heapq.heappop(openHeap)).priority
+            #print(curNode.i, curNode.j, curNode.dir, curNode.t, curNode.h, curNode.g, curNode.f)
 
             if (curNode.i == finNode.i and curNode.j == finNode.j):
                 ready_to_finish = True
@@ -220,6 +229,7 @@ class ISearch:
                     continue
                 finNode = curNode
                 pathFound = True
+                break
 
             else:
                 openCopy.pop((curNode.i, curNode.j, curNode.dir, curNode.t))
@@ -271,86 +281,93 @@ class ISearch:
             self.broken(agent, agent_action)
 
     def findSuccessors(self, curNode, map, agent, env):
-                position = [curNode.i, curNode.j]
-                available = env.rail.get_transitions(*position, curNode.dir)
-                inter_answer = []
-                if (available[0] == True):
-                        inter_answer.append(Node(curNode.i - 1, curNode.j, 0))
-                if (available[1] == True):
-                        inter_answer.append(Node(curNode.i, curNode.j + 1, 1))
-                if (available[2] == True):
-                        inter_answer.append(Node(curNode.i + 1, curNode.j, 2))
-                if (available[3] == True):
-                        inter_answer.append(Node(curNode.i, curNode.j - 1, 3))
-                inter_answer.append(Node(curNode.i, curNode.j, curNode.dir))
-                successors = []
-                for scNode in inter_answer:
-                        scNode.g = curNode.g + 1
-                        scNode.h = heuristic.get_heuristic(agent.agentId, scNode.i, scNode.j, scNode.dir)
-                        scNode.f = scNode.g + scNode.h
-                        scNode.t = curNode.t + 1
-                        if (not self.checkReservation(scNode.i, scNode.j, scNode.t)):
-                                if (self.checkReservation(scNode.i, scNode.j, scNode.t + 1)):
-                                    current_number = agent.agentId
-                                    other_number = self.get_occupator(scNode.i, scNode.j, scNode.t + 1)
-                                    if (current_number > other_number):
-                                        continue
-                                if (self.checkReservation(scNode.i, scNode.j, scNode.t - 1)):
-                                    current_number = agent.agentId
-                                    other_number = self.get_occupator(scNode.i, scNode.j, scNode.t - 1)
-                                    if (current_number < other_number):
-                                        continue
-                                if (not self.checkReservation(scNode.i, scNode.j, curNode.t) or not self.checkReservation(curNode.i, curNode.j, scNode.t)):
-                                    successors.append(scNode)
+            position = [curNode.i, curNode.j]
+            available = env.rail.get_transitions(*position, curNode.dir)
+            inter_answer = []
+            if (available[0] == True):
+                    inter_answer.append(Node(curNode.i - 1, curNode.j, 0))
+            if (available[1] == True):
+                    inter_answer.append(Node(curNode.i, curNode.j + 1, 1))
+            if (available[2] == True):
+                    inter_answer.append(Node(curNode.i + 1, curNode.j, 2))
+            if (available[3] == True):
+                    inter_answer.append(Node(curNode.i, curNode.j - 1, 3))
+            inter_answer.append(Node(curNode.i, curNode.j, curNode.dir))
+            successors = []
+            for scNode in inter_answer:
+                    plus = 1
+                    finish_x, finish_y = env.agents[agent.agentId].target[0], env.agents[agent.agentId].target[1]
+                    if (((scNode.i, scNode.j) in map.start_points) and not (scNode.i == finish_x and scNode.j == finish_y)):
+                        plus = 7
+                    scNode.g = curNode.g + plus
+                    scNode.h = heuristic.get_heuristic(agent.agentId, scNode.i, scNode.j, scNode.dir)
+                    #scNode.h = self.computeHFromCellToCell(scNode.i, scNode.j, agent.fin_i, agent.fin_j)
+                    scNode.f = scNode.g + scNode.h
+                    scNode.t = curNode.t + 1
+                    if (not self.checkReservation(scNode.i, scNode.j, scNode.t)):
+                            if (self.checkReservation(scNode.i, scNode.j, scNode.t + 1)):
+                                current_number = agent.agentId
+                                other_number = self.get_occupator(scNode.i, scNode.j, scNode.t + 1)
+                                if (current_number > other_number):
                                     continue
-                                edge_conflict = (self.get_occupator(scNode.i, scNode.j, curNode.t) == self.get_occupator(curNode.i, curNode.j, scNode.t))
-                                if (not edge_conflict):
-                                        successors.append(scNode)
-                return successors
+                            if (self.checkReservation(scNode.i, scNode.j, scNode.t - 1)):
+                                current_number = agent.agentId
+                                other_number = self.get_occupator(scNode.i, scNode.j, scNode.t - 1)
+                                if (current_number < other_number):
+                                    continue
+                            if (not self.checkReservation(scNode.i, scNode.j, curNode.t) or not self.checkReservation(curNode.i, curNode.j, scNode.t)):
+                                successors.append(scNode)
+                                continue
+                            edge_conflict = (self.get_occupator(scNode.i, scNode.j, curNode.t) == self.get_occupator(curNode.i, curNode.j, scNode.t))
+                            if (not edge_conflict):
+                                    successors.append(scNode)
+            return successors
 
     def makePrimaryPath(self, curNode, startNode, agent):
         for i in range(curNode.t, self.maxTime):
             self.reservations[(i, curNode.i, curNode.j)] = agent.agentId
 
         while curNode != startNode:
-            self.lppath.append(curNode)
+            self.lppath[agent.agentId].append(curNode)
             self.reservations[(curNode.t, curNode.i, curNode.j)] = agent.agentId
             curNode = curNode.parent
 
-        self.lppath.append(curNode)
+        self.lppath[agent.agentId].append(curNode)
         self.reservations[(curNode.t, curNode.i, curNode.j)] = agent.agentId
 
-        self.lppath = self.lppath[::-1]
+        self.lppath[agent.agentId] = self.lppath[agent.agentId][::-1]
 
     def makeFlatlandFriendlyPath(self, agent, agent_action):
-        for ind in range(1, len(self.lppath)):
-            if (self.lppath[ind].i == self.lppath[ind - 1].i and self.lppath[ind].j == self.lppath[ind - 1].j):
+        for ind in range(1, len(self.lppath[agent.agentId])):
+            if (self.lppath[agent.agentId][ind].i == self.lppath[agent.agentId][ind - 1].i and self.lppath[agent.agentId][ind].j == self.lppath[agent.agentId][ind - 1].j):
                 agent_action[agent.agentId].append(4)
-            elif abs(self.lppath[ind].dir - self.lppath[ind - 1].dir) % 2 == 0:
+            elif abs(self.lppath[agent.agentId][ind].dir - self.lppath[agent.agentId][ind - 1].dir) % 2 == 0:
                 agent_action[agent.agentId].append(2)
-            elif ((self.lppath[ind - 1].dir + 1) % 4 == self.lppath[ind].dir):
+            elif ((self.lppath[agent.agentId][ind - 1].dir + 1) % 4 == self.lppath[agent.agentId][ind].dir):
                 agent_action[agent.agentId].append(3)
             else:
                 agent_action[agent.agentId].append(1)
 
     def broken(self, agent, agent_action):
-        for ind in range(500):
-            agent_action[agent.agentId].append(4)
+        agent_action[agent.agentId] = [4] * self.maxTime
 
 class solver:
-    def __init__(self, type):
+    def __init__(self, type, env):
         self.answer_build = False
         self.agent_action = []
         self.current_pos = []
         self.map = Map()
         self.agents = Agents()
-        self.search = ISearch()
+        self.search = ISearch(env)
         self.type = type
+        self.malfunction = [False] * env.get_num_agents()
 
-    def build(self, env):
+    def build(self, env, start_wait):
         self.answer_build = True
         self.current_pos = [0] * env.get_num_agents()
         self.agent_action = []
+        for i in range(env.get_num_agents()):
+            self.agent_action.append([])
         self.map.getMapOptions(env)
 
         self.agents.getAgents(env)
@@ -360,14 +377,12 @@ class solver:
                 agent = Agent(i)
                 agent.getAgent(env)
                 self.agents.allAgents.append(agent)
-                self.agent_action.append([])
         
         if (self.type == "reversed"):
             for i in range(self.agents.size - 1, -1, -1):
                 agent = Agent(i)
                 agent.getAgent(env)
                 self.agents.allAgents.append(agent)
-                self.agent_action.append([])
                 
         if (self.type == "scientific"):
             queue = []
@@ -381,7 +396,6 @@ class solver:
                 agent = Agent(queue[i][1])
                 agent.getAgent(env)
                 self.agents.allAgents.append(agent)
-                self.agent_action.append([])
             
         if (self.type == "random"):
             queue = []
@@ -392,23 +406,12 @@ class solver:
                 agent = Agent(queue[i])
                 agent.getAgent(env)
                 self.agents.allAgents.append(agent)
-                self.agent_action.append([])
                 
-        if (self.type == "my"):
-            queue = []
-            for ind in range(self.agents.size):
-                x1, y1 = env.agents[ind].position
-                x2, y2 = env.agents[ind].target
-                potential = heuristic.get_heuristic(ind, x1, y1, env.agents[ind].direction)
-                queue.append([potential, ind])
-            queue.sort()
-            for i in range(self.agents.size):
-                agent = Agent(queue[i][1])
-                agent.getAgent(env)
-                self.agents.allAgents.append(agent)
-                self.agent_action.append([])
+        for ind in range(env.get_num_agents()):
+            for turn in range(start_wait[ind]):
+                self.agent_action[ind].append(4)
 
-        self.search.startAllAgents(self.map, self.agents, env, self.agent_action)
+        self.search.startAllAgents(self.map, self.agents, env, self.agent_action, start_wait)
         
     def get_penalty(self, env):
         answer = 0
@@ -424,31 +427,38 @@ class solver:
                 self.current_pos[ind] += 1
         return _action
     
+    def reset(self, info, env):
+        need_reset = False
+        for ind in range(env.get_num_agents()):
+            if (info["malfunction"][ind] > 1):
+                need_reset = True
+        if (need_reset == True):
+            self.map = Map()
+            self.agents = Agents()
+            self.search = ISearch(env)
+            start_wait = [0] * env.get_num_agents()
+            for ind in range(env.get_num_agents()):
+                start_wait[ind] = max(info["malfunction"][ind] - 1, 0)
+            self.build(env, start_wait)
+            
+    def need_reset(self, info, env):
+        for ind in range(env.get_num_agents()):
+            delay = (info["malfunction"][ind] > 1)
+            if (delay and not self.malfunction[ind]):
+                return True
+        return False
+    
+    def update_malfunction(self, info, env):
+        for ind in range(env.get_num_agents()):
+            self.malfunction[ind] = (info["malfunction"][ind] > 1)
+            
+        
+    
 def my_controller(env, number):
-    global best
-    if (path_finder_1.answer_build == False):
-        path_finder_1.build(env)
-        path_finder_2.build(env)
-        path_finder_3.build(env)
-        path_finder_4.build(env)
-        minimum_of_rand = 1000000000
-        for ind in range(250):
-            randomic[ind].build(env)
-            minimum_of_rand = min(minimum_of_rand, randomic[ind].get_penalty(env))
-        minimum = min(min(min(path_finder_1.get_penalty(env), path_finder_2.get_penalty(env)), min(path_finder_3.get_penalty(env), minimum_of_rand)), path_finder_4.get_penalty(env))
-        if (path_finder_1.get_penalty(env) == minimum):
-            best = path_finder_1
-        if (path_finder_2.get_penalty(env) == minimum):
-            best = path_finder_2
-        if (path_finder_3.get_penalty(env) == minimum):
-            best = path_finder_3
-        if (path_finder_4.get_penalty(env) == minimum):
-            best = path_finder_4
-        for ind in range(250):
-            if (randomic[ind].get_penalty(env) == minimum):
-                best = randomic[ind]
-
-    _action = best.print_step(env)
+    if (path_finder.answer_build == False):
+        path_finder.build(env, [0] * env.get_num_agents())
+    
+    _action = path_finder.print_step(env)
     return _action
 
 my_observation_builder = TreeObsForRailEnv(
@@ -505,16 +515,8 @@ while True:
     # you need from the environment. It is a valid RailEnv instance.
     local_env = remote_client.env
     number_of_agents = len(local_env.agents)
-    
+    path_finder = solver("as usual", local_env)
     heuristic = global_H(local_env)
-    path_finder_1 = solver("as usual")
-    path_finder_2 = solver("reversed")
-    path_finder_3 = solver("scientific")
-    path_finder_4 = solver("my")
-    randomic = []
-    for ind in range(250):
-        randomic.append(solver("random"))
-    best = path_finder_1
 
     # Now we enter into another infinite loop where we 
     # compute the actions for all the individual steps in this episode
