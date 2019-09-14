@@ -55,7 +55,60 @@ class Agents:
 
     def getAgents(self, env):
         self.size = env.get_num_agents()
-
+        
+class Node_h:
+    
+    def __init__(self, x, y, dir, time):
+        self.i = x
+        self.j = y
+        self.dir = dir
+        self.time = time
+        
+class global_H:
+    
+    def __init__(self, env):
+        self.database = dict()
+        self.env = env
+        for ind in range(env.get_num_agents()):
+            self.start_agent(ind)
+        
+    def get_neighbors(self, curNode):
+        available = env.rail.get_transitions(*[curNode.i, curNode.j], curNode.dir)
+        answer = []
+        if (available[0] == True):
+            answer.append(Node_h(curNode.i - 1, curNode.j, 0, curNode.time + 1))
+        if (available[1] == True):
+            answer.append(Node_h(curNode.i, curNode.j + 1, 1, curNode.time + 1))
+        if (available[2] == True):
+            answer.append(Node_h(curNode.i + 1, curNode.j, 2, curNode.time + 1))
+        if (available[3] == True):
+            answer.append(Node_h(curNode.i, curNode.j - 1, 3, curNode.time + 1))
+        return answer
+        
+    def get_dir(self, position):
+        available = []
+        for dest in range(4):
+            available.append(env.rail.get_transitions(*position, dest))
+            if (sum(available[dest]) > 0):
+                return dest
+        
+        
+    def start_agent(self, number):
+        
+        start = Node_h(self.env.agents[number].target[0], self.env.agents[number].target[1], self.get_dir(self.env.agents[number].target), 0)
+        queue = Queue()
+        queue.put(start)
+        while (not queue.empty()):
+            current = queue.get()
+            candidates = self.get_neighbors(current)
+            for node in candidates:
+                if ((number, current.i, current.j, (node.dir + 2) % 4) not in self.database):
+                    self.database[(number, current.i, current.j, (node.dir + 2) % 4)] = current.time
+                    queue.put(node)
+                    
+    def get_heuristic(self, agentId, x, y, dir):
+        if (agentId, x, y, dir) in self.database:
+            return self.database[(agentId, x, y, dir)]
 
 class Node:
     def __init__(self, i, j, dir):
@@ -134,7 +187,7 @@ class ISearch:
     def startSearch(self, map, agent, env, agent_action):
 
         startNode = Node(agent.start_i, agent.start_j, agent.dir)
-        startNode.h = self.computeHFromCellToCell(agent.start_i, agent.start_j, agent.fin_i, agent.fin_j)
+        startNode.h = heuristic.get_heuristic(agent.agentId, startNode.i, startNode.j, startNode.dir)
         startNode.f = startNode.g + startNode.h
 
         finNode = Node(agent.fin_i, agent.fin_j, agent.dir)
@@ -179,11 +232,6 @@ class ISearch:
                         foundInClosed = True
 
                     if ((not foundInClosed) and curNode.g + 1 <= scNode.g):
-
-                        scNode.g = curNode.g + 1
-                        scNode.h = self.computeHFromCellToCell(scNode.i, scNode.j, agent.fin_i, agent.fin_j)
-                        scNode.f = scNode.g + scNode.h
-                        scNode.t = curNode.t + 1
 
                         scNode.parent = curNode
 
@@ -237,7 +285,7 @@ class ISearch:
                 successors = []
                 for scNode in inter_answer:
                         scNode.g = curNode.g + 1
-                        scNode.h = self.computeHFromCellToCell(scNode.i, scNode.j, agent.fin_i, agent.fin_j)
+                        scNode.h = heuristic.get_heuristic(agent.agentId, scNode.i, scNode.j, scNode.dir)
                         scNode.f = scNode.g + scNode.h
                         scNode.t = curNode.t + 1
                         if (not self.checkReservation(scNode.i, scNode.j, scNode.t)):
@@ -344,6 +392,20 @@ class solver:
                 agent.getAgent(env)
                 self.agents.allAgents.append(agent)
                 self.agent_action.append([])
+                
+        if (self.type == "my"):
+            queue = []
+            for ind in range(self.agents.size):
+                x1, y1 = env.agents[ind].position
+                x2, y2 = env.agents[ind].target
+                potential = heuristic.get_heuristic(ind, x1, y1, env.agents[ind].direction)
+                queue.append([potential, ind])
+            queue.sort()
+            for i in range(self.agents.size):
+                agent = Agent(queue[i][1])
+                agent.getAgent(env)
+                self.agents.allAgents.append(agent)
+                self.agent_action.append([])
 
         self.search.startAllAgents(self.map, self.agents, env, self.agent_action)
         
@@ -367,18 +429,21 @@ def my_controller(env, number):
         path_finder_1.build(env)
         path_finder_2.build(env)
         path_finder_3.build(env)
+        path_finder_4.build(env)
         minimum_of_rand = 1000000000
-        for ind in range(150):
+        for ind in range(250):
             randomic[ind].build(env)
             minimum_of_rand = min(minimum_of_rand, randomic[ind].get_penalty(env))
-        minimum = min(min(path_finder_1.get_penalty(env), path_finder_2.get_penalty(env)), min(path_finder_3.get_penalty(env), minimum_of_rand))
+        minimum = min(min(min(path_finder_1.get_penalty(env), path_finder_2.get_penalty(env)), min(path_finder_3.get_penalty(env), minimum_of_rand)), path_finder_4.get_penalty(env))
         if (path_finder_1.get_penalty(env) == minimum):
             best = path_finder_1
         if (path_finder_2.get_penalty(env) == minimum):
             best = path_finder_2
         if (path_finder_3.get_penalty(env) == minimum):
             best = path_finder_3
-        for ind in range(150):
+        if (path_finder_4.get_penalty(env) == minimum):
+            best = path_finder_4
+        for ind in range(250):
             if (randomic[ind].get_penalty(env) == minimum):
                 best = randomic[ind]
 
@@ -390,14 +455,6 @@ my_observation_builder = TreeObsForRailEnv(
                                 predictor=ShortestPathPredictorForRailEnv()
                             )
 
-path_finder_1 = solver("as usual")
-path_finder_2 = solver("reversed")
-path_finder_3 = solver("scientific")
-randomic = []
-for ind in range(150):
-    randomic.append(solver("random"))
-best = path_finder_1
-
 #####################################################################
 # Main evaluation loop
 #
@@ -407,13 +464,6 @@ evaluation_number = 0
 while True:
 
     evaluation_number += 1
-    path_finder_1 = solver("as usual")
-    path_finder_2 = solver("reversed")
-    path_finder_3 = solver("scientific")
-    randomic = []
-    for ind in range(150):
-        randomic.append(solver("random"))
-    best = path_finder_1
     # Switch to a new evaluation environemnt
     # 
     # a remote_client.env_create is similar to instantiating a 
@@ -454,6 +504,16 @@ while True:
     # you need from the environment. It is a valid RailEnv instance.
     local_env = remote_client.env
     number_of_agents = len(local_env.agents)
+    
+    heuristic = global_H(local_env)
+    path_finder_1 = solver("as usual")
+    path_finder_2 = solver("reversed")
+    path_finder_3 = solver("scientific")
+    path_finder_4 = solver("my")
+    randomic = []
+    for ind in range(250):
+        randomic.append(solver("random"))
+    best = path_finder_1
 
     # Now we enter into another infinite loop where we 
     # compute the actions for all the individual steps in this episode
