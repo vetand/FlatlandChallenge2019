@@ -131,7 +131,7 @@ class global_H:
             self.start_agent(ind)
         
     def get_neighbors(self, curNode):
-        available = env.rail.get_transitions(*[curNode.i, curNode.j], curNode.dir)
+        available = self.env.rail.get_transitions(*[curNode.i, curNode.j], curNode.dir)
         answer = []
         if (available[0] == True):
             answer.append(Node_h(curNode.i - 1, curNode.j, 0, curNode.time + 1))
@@ -146,7 +146,7 @@ class global_H:
     def get_dir(self, position):
         available = []
         for dest in range(4):
-            available.append(env.rail.get_transitions(*position, dest))
+            available.append(self.env.rail.get_transitions(*position, dest))
             if (sum(available[dest]) > 0):
                 return dest
         
