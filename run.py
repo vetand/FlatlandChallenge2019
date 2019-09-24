@@ -128,7 +128,7 @@ class global_H: # advanced heuristic - shortest path from this cell to finish wi
             self.start_agent(ind)
         
     def get_neighbors(self, curNode): # actually, the same procedure with Isearch class
-        available = env.rail.get_transitions(*[curNode.i, curNode.j], curNode.dir)
+        available = self.env.rail.get_transitions(*[curNode.i, curNode.j], curNode.dir)
         answer = []
         if (available[0] == True):
             answer.append(Node_h(curNode.i - 1, curNode.j, 0, curNode.time + 1))
@@ -143,7 +143,7 @@ class global_H: # advanced heuristic - shortest path from this cell to finish wi
     def get_dir(self, position): # get a direction (orientation) of a trainstation
         available = []
         for dest in range(4):
-            available.append(env.rail.get_transitions(*position, dest))
+            available.append(self.env.rail.get_transitions(*position, dest))
             if (sum(available[dest]) > 0):
                 return dest
         
@@ -591,7 +591,7 @@ class submission:
         #    self.reset()
             
     def reset(self):
-        self.control_agent.getAgents(env)
+        self.control_agent.getAgents(self.env)
         self.build()
             
             
