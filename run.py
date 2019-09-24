@@ -659,19 +659,19 @@ while True:
     
     best_seq = []
     best_size = INFINITY
-    heuristic = global_H(env)
+    heuristic = global_H(local_env)
     path_finder_1 = submission(env, "as usual")
-    my_controller(env, path_finder_1)
-    path_finder_2 = submission(env, "reversed")
-    my_controller(env, path_finder_2)
-    path_finder_3 = submission(env, "my")
-    my_controller(env, path_finder_3)
-    path_finder_4 = submission(env, "scientific")
-    my_controller(env, path_finder_4)
-    for i in range(30):
-        path_finder = submission(env, "random")
-        my_controller(env, path_finder)
-    best = submission(env, "best")
+    my_controller(local_env, path_finder_1)
+    path_finder_2 = submission(local_env, "reversed")
+    my_controller(local_env, path_finder_2)
+    path_finder_3 = submission(local_env, "my")
+    my_controller(local_env, path_finder_3)
+    path_finder_4 = submission(local_env, "scientific")
+    my_controller(local_env, path_finder_4)
+    for i in range(35):
+        path_finder = submission(local_env, "random")
+        my_controller(local_env, path_finder)
+    best = submission(local_env, "best")
     best.update_malfunctions_after()
     best.build_simple()
 
