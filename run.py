@@ -491,12 +491,12 @@ class submission:
                 index = self.get_worst()
                 new_order.append(index)
                 random.shuffle(new_order)
-                for ind in range(env.get_num_agents()):
+                for ind in range(self.env.get_num_agents()):
                     if (not was_once_false[ind] == True and ind != index):
                         new_order.append(ind)
             else:
                 random.shuffle(new_order)
-                for ind in range(env.get_num_agents()):
+                for ind in range(self.env.get_num_agents()):
                     if (not was_once_false[ind] == True):
                         new_order.append(ind)
             self.current_order = copy.deepcopy(new_order) # at the beginning of new order are only agents
@@ -554,7 +554,7 @@ class submission:
             for ind in range(self.env.get_num_agents()):
                 agent = self.control_agent.allAgents[ind]
                 if not self.check_expected_next(agent):
-                    self.stoppers.add(env.agents[ind].position)
+                    self.stoppers.add(self.env.agents[ind].position)
                     
     def print_step(self):
         _action = {}
