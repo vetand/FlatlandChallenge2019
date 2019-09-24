@@ -660,7 +660,7 @@ while True:
     best_seq = []
     best_size = INFINITY
     heuristic = global_H(local_env)
-    path_finder_1 = submission(env, "as usual")
+    path_finder_1 = submission(local_env, "as usual")
     my_controller(local_env, path_finder_1)
     path_finder_2 = submission(local_env, "reversed")
     my_controller(local_env, path_finder_2)
