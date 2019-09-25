@@ -577,16 +577,15 @@ class submission:
         need_reset = False
         for ind in range(self.env.get_num_agents()):
             agent = self.control_agent.allAgents[ind]
-            if self.env.agents[ind].malfunction_data['malfunction'] > 1 and not agent.malfunction:
-                agent.malfunction = True
-                need_reset = True
-            if self.env.agents[ind].malfunction_data['malfunction'] <= 1:
-                agent.malfunction = False
+            #if self.env.agents[ind].malfunction_data['malfunction'] > 1 and not agent.malfunction:
+            #    agent.malfunction = True
+            #    need_reset = True
+            #if self.env.agents[ind].malfunction_data['malfunction'] <= 1:
+            #    agent.malfunction = False
             current_position = Node(self.env.agents[ind].position[0], 
                                     self.env.agents[ind].position[1],
                                     self.env.agents[ind].direction )
-            self.control_agent.allAgents[ind].obligations = [current_position, 
-                                                    max(self.env.agents[ind].malfunction_data['malfunction'] - 1, 0)]
+            self.control_agent.allAgents[ind].obligations = [current_position, 0]
         #if need_reset:
         #    self.reset()
             
@@ -599,7 +598,7 @@ def my_controller(env, path_finder):
     path_finder.update_malfunctions_after()
     if (path_finder.answer_build == False):
         path_finder.build()
-    path_finder.update_malfunctions_before()
+    #path_finder.update_malfunctions_before()
     return path_finder.print_step()
 
 my_observation_builder = TreeObsForRailEnv(
