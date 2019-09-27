@@ -494,8 +494,8 @@ class submission:
                 new_order.append(index)
                 random.shuffle(new_order)
                 for ind in range(self.env.get_num_agents()):
-                    if (not was_once_false[ind] == True and ind != index):
-                        new_order.append(ind)
+                    if (not was_once_false[self.current_order[ind]] == True and self.current_order[ind] != index):
+                        new_order.append(self.current_order[ind])
             else:
                 random.shuffle(new_order)
                 for ind in range(self.env.get_num_agents()):
