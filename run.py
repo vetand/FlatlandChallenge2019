@@ -669,7 +669,7 @@ while True:
     my_controller(local_env, path_finder_3)
     path_finder_4 = submission(local_env, "scientific")
     my_controller(local_env, path_finder_4)
-    for i in range(25):
+    for i in range(20):
         path_finder = submission(local_env, "random")
         my_controller(local_env, path_finder)
     best = submission(local_env, "best")
