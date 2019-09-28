@@ -98,7 +98,7 @@ class Entry: # low-level code: Entry class for priority queue in A* (no changes)
             if (one.g == two.g):
                 return one < two
             else:
-                return one.g > two.g
+                return one.g < two.g
         return one.f < two.f
 
     def __cmp__(self, other):
