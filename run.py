@@ -477,7 +477,7 @@ class submission:
         
     def build(self): # if we need to build a new paths
         was_once_false = [0] * self.env.get_num_agents()
-        for attempt in range(10): # we can change number of attempts in future
+        for attempt in range(7): # we can change number of attempts in future
             path_exists = self.build_with_order(self.current_order)
             #print(attempt, path_exists, self.current_order)
             self.count_length(self.current_order, path_exists)
@@ -575,6 +575,8 @@ class submission:
     
     def update_malfunctions_after(self): # we should decide if we need a re-plan due to a new malfunction
                                          # and update some info
+        if (self.answer_build == True):
+            return
         self.stoppers = set()
         need_reset = False
         for ind in range(self.env.get_num_agents()):
@@ -669,7 +671,7 @@ while True:
     my_controller(local_env, path_finder_3)
     path_finder_4 = submission(local_env, "scientific")
     my_controller(local_env, path_finder_4)
-    for i in range(26):
+    for i in range(40):
         path_finder = submission(local_env, "random")
         my_controller(local_env, path_finder)
     best = submission(local_env, "best")
