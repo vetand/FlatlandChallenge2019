@@ -610,9 +610,9 @@ class submission:
             if self.env.agents[ind].malfunction_data['malfunction'] <= 1:
                 agent.malfunction = False
             if self.env.agents[ind].position == None:
-                agent_position = env.agents[ind].initial_position
+                agent_position = self.env.agents[ind].initial_position
             else:
-                agent_position = env.agents[ind].position
+                agent_position = self.env.agents[ind].position
             current_position = Node(agent_position[0], 
                                     agent_position[1],
                                     self.env.agents[ind].direction )
@@ -624,7 +624,7 @@ class submission:
             self.reset()
             
     def reset(self):
-        self.control_agent.getAgents(env, "second")
+        self.control_agent.getAgents(self.env, "second")
         self.build()
             
             
