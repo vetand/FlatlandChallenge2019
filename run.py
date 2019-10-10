@@ -719,7 +719,10 @@ while True:
         #####################################################################
         # Compute the action for this step by using the previously 
         # defined controlle
-        action = my_controller(local_env, path_finder)
+        action = {}
+        #action = my_controller(local_env, path_finder)
+        for ind in range(local_env.get_num_agents()):
+            action[ind] = 2
 
         # Perform the chosen action on the environment.
         # The action gets applied to both the local and the remote copy 
