@@ -698,8 +698,8 @@ while True:
     local_env = remote_client.env
     number_of_agents = len(local_env.agents)
 
-    heuristic = global_H(local_env)
-    path_finder = submission(local_env)
+    #heuristic = global_H(local_env)
+    #path_finder = submission(local_env)
 
     # Now we enter into another infinite loop where we 
     # compute the actions for all the individual steps in this episode
