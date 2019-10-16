@@ -7,8 +7,8 @@ import copy
 import time
 import numpy as np
 from queue import Queue
-import random
-random.seed(47)
+#import random
+#random.seed(47)
 EPS = 0.001
 INFINITY = 1000000007
 
@@ -485,7 +485,7 @@ class submission:
     def build(self): # if we need to build a new paths
         for attempt in range(10): # we can change number of attempts in future
             path_exists = self.build_with_order(self.current_order)
-            print(attempt, path_exists, self.current_order)
+            #print(attempt, path_exists, self.current_order)
             new_order = []
             answer_ready = True
             for ind in range(self.env.get_num_agents()):
@@ -494,7 +494,7 @@ class submission:
                     answer_ready = False
             if (answer_ready):
                 break
-            random.shuffle(new_order)
+            #random.shuffle(new_order)
             for ind in range(self.env.get_num_agents()):
                 if (path_exists[self.current_order[ind]] == True):
                     new_order.append(self.current_order[ind])
