@@ -1,11 +1,11 @@
 from flatland.evaluators.client import FlatlandRemoteClient
-from flatland.envs.observations import TreeObsForRailEnv
-from flatland.envs.predictions import ShortestPathPredictorForRailEnv
+from flatland.core.env_observation_builder import DummyObservationBuilder
+from my_observation_builder import CustomObservationBuilder
 from flatland.envs.agent_utils import EnvAgentStatic, EnvAgent, RailAgentStatus
 import numpy as np
+import time
 import heapq
 import copy
-import time
 import numpy as np
 from queue import Queue
 #import random
@@ -13,6 +13,7 @@ from queue import Queue
 EPS = 0.001
 INFINITY = 1000000007
 ADD_GROUP_NUMBER = 5
+
 
 
 #####################################################################
@@ -661,11 +662,14 @@ def my_controller(env, path_finder):
 # the example here : 
 # https://gitlab.aicrowd.com/flatland/flatland/blob/master/flatland/envs/observations.py#L14
 #####################################################################
+my_observation_builder = CustomObservationBuilder()
 
-my_observation_builder = TreeObsForRailEnv(
-                                max_depth=3,
-                                predictor=ShortestPathPredictorForRailEnv()
-                            )
+# Or if you want to use your own approach to build the observation from the env_step, 
+# please feel free to pass a DummyObservationBuilder() object as mentioned below,
+# and that will just return a placeholder True for all observation, and you 
+# can build your own Observation for all the agents as your please.
+# my_observation_builder = DummyObservationBuilder()
+
 
 #####################################################################
 # Main evaluation loop
@@ -686,9 +690,11 @@ while True:
     # You can also pass your custom observation_builder object
     # to allow you to have as much control as you wish 
     # over the observation of your choice.
+    time_start = time.time()
     observation, info = remote_client.env_create(
                     obs_builder_object=my_observation_builder
                 )
+    env_creation_time = time.time() - time_start
     if not observation:
         #
         # If the remote_client returns False on a `env_create` call,
@@ -729,15 +735,23 @@ while True:
     # or when the number of time steps has exceed max_time_steps, which 
     # is defined by : 
     #
-    # max_time_steps = int(1.5 * (env.width + env.height))
+    # max_time_steps = int(4 * 2 * (env.width + env.height + 20))
     #
+    time_taken_by_controller = []
+    time_taken_per_step = []
+    steps = 0
     while True:
         #####################################################################
         # Evaluation of a single episode
         #
         #####################################################################
         # Compute the action for this step by using the previously 
-        # defined controlle
+        # defined controller
+        time_start = time.time()
+        action = my_controller(observation, number_of_agents)
+        time_taken = time.time() - time_start
+        time_taken_by_controller.append(time_taken)
+
         action = my_controller(local_env, path_finder)
 
         # Perform the chosen action on the environment.
@@ -745,7 +759,12 @@ while True:
         # of the environment instance, and the observation is what is 
         # returned by the local copy of the env, and the rewards, and done and info
         # are returned by the remote copy of the env
+        time_start = time.time()
         observation, all_rewards, done, info = remote_client.env_step(action)
+        steps += 1
+        time_taken = time.time() - time_start
+        time_taken_per_step.append(time_taken)
+
         if done['__all__']:
             print("Reward : ", sum(list(all_rewards.values())))
             #
@@ -753,6 +772,18 @@ while True:
             # particular Env instantiation is complete, and we can break out 
             # of this loop, and move onto the next Env evaluation
             break
+    
+    np_time_taken_by_controller = np.array(time_taken_by_controller)
+    np_time_taken_per_step = np.array(time_taken_per_step)
+    print("="*100)
+    print("="*100)
+    print("Evaluation Number : ", evaluation_number)
+    print("Current Env Path : ", remote_client.current_env_path)
+    print("Env Creation Time : ", env_creation_time)
+    print("Number of Steps : ", steps)
+    print("Mean/Std of Time taken by Controller : ", np_time_taken_by_controller.mean(), np_time_taken_by_controller.std())
+    print("Mean/Std of Time per Step : ", np_time_taken_per_step.mean(), np_time_taken_per_step.std())
+    print("="*100)
 
 print("Evaluation of all environments complete...")
 ########################################################################
