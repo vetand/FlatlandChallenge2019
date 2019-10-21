@@ -186,6 +186,8 @@ class global_H: # advanced heuristic - shortest path from this cell to finish wi
     def get_heuristic(self, agentId, x, y, dir): # output
         if (agentId, x, y, dir) in self.database:
             return self.database[(agentId, x, y, dir)]
+        else:
+            return INFINITY
 
 class ISearch:
     def __init__(self, env):
@@ -482,9 +484,9 @@ def build_start_order(env, type): # custom desine of start agents order
             x2, y2 = env.agents[ind].target
             potential = heuristic.get_heuristic(ind, x1, y1, env.agents[ind].direction) / env.agents[ind].speed_data['speed']
             if (env.agents[ind].malfunction_data["malfunction"] > 1):
-                queue_2.append([potential, ind])
-            else:
                 queue_1.append([potential, ind])
+            else:
+                queue_2.append([potential, ind])
         queue_1.sort()
         queue_2.sort()
         for i in range(len(queue_2)):
