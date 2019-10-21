@@ -8,8 +8,8 @@ import copy
 import time
 import numpy as np
 from queue import Queue
-import random
-random.seed(47)
+#import random
+#random.seed(47)
 EPS = 0.001
 INFINITY = 1000000007
 ADD_GROUP_NUMBER = 5
@@ -526,7 +526,7 @@ class submission:
                     answer_ready = False
             if (answer_ready):
                 break
-            random.shuffle(new_order)
+            #random.shuffle(new_order)
             for ind in range(self.env.get_num_agents()):
                 if (path_exists[self.current_order[ind]] == True):
                     new_order.append(self.current_order[ind])
