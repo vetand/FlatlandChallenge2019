@@ -662,13 +662,13 @@ def my_controller(env, path_finder):
 # the example here : 
 # https://gitlab.aicrowd.com/flatland/flatland/blob/master/flatland/envs/observations.py#L14
 #####################################################################
-my_observation_builder = CustomObservationBuilder()
+#my_observation_builder = CustomObservationBuilder()
 
 # Or if you want to use your own approach to build the observation from the env_step, 
 # please feel free to pass a DummyObservationBuilder() object as mentioned below,
 # and that will just return a placeholder True for all observation, and you 
 # can build your own Observation for all the agents as your please.
-# my_observation_builder = DummyObservationBuilder()
+my_observation_builder = DummyObservationBuilder()
 
 
 #####################################################################
@@ -748,11 +748,9 @@ while True:
         # Compute the action for this step by using the previously 
         # defined controller
         time_start = time.time()
-        action = my_controller(observation, number_of_agents)
+        action = my_controller(local_env, path_finder)
         time_taken = time.time() - time_start
         time_taken_by_controller.append(time_taken)
-
-        action = my_controller(local_env, path_finder)
 
         # Perform the chosen action on the environment.
         # The action gets applied to both the local and the remote copy 
