@@ -71,7 +71,7 @@ dependencies:
     - crowdai-api==0.1.21
     - cycler==0.10.0
     - filelock==3.0.12
-    - flatland-rl==2.1.6
+    - flatland-rl==2.1.7
     - future==0.17.1
     - gym==0.14.0
     - idna==2.8
@@ -112,4 +112,3 @@ dependencies:
     - xarray==0.12.3
     - zipp==0.5.2
 prefix: /home/ubuntu/anaconda3/envs/flatland-rl
-
