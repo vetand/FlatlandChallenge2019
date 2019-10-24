@@ -509,7 +509,7 @@ class submission:
         self.next_agent_add = INFINITY
         self.moving_numbers = set()
         self.done_numbers = set()
-        self.capacity = (self.env.height + self.env.width) // 5  # we don`t want to overcharge the map, so we set the maximum number of trains in elaluation
+        self.capacity = (self.env.height + self.env.width) // 6 - 2 # we don`t want to overcharge the map, so we set the maximum number of trains in elaluation
         self.current_capacity = 0
           
     def flush_actions(self):
