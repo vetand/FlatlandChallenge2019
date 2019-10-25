@@ -195,7 +195,7 @@ class ISearch:
         for ind in range(env.get_num_agents()):
             self.lppath.append([])
         self.reservations = dict() # reservated cells
-        self.maxTime = 1000
+        self.maxTime = 2000
 
     def startallAgents(self, env, control_agent, order, moving_numbers): # preparations and performing A* 
                                                          # search for every single agent
@@ -509,7 +509,7 @@ class submission:
         self.next_agent_add = INFINITY
         self.moving_numbers = set()
         self.done_numbers = set()
-        self.capacity = (self.env.height + self.env.width) // 6 - 2 # we don`t want to overcharge the map, so we set the maximum number of trains in elaluation
+        self.capacity = (self.env.height + self.env.width) // 7 # we don`t want to overcharge the map, so we set the maximum number of trains in elaluation
         self.current_capacity = 0
           
     def flush_actions(self):
@@ -632,8 +632,12 @@ class submission:
         last_adding = (len(self.moving_numbers) + len(self.done_numbers) + ADD_GROUP_NUMBER >= self.env.get_num_agents()) and (self.env.get_num_agents() - len(self.done_numbers) <= self.capacity) 
         if (not usual_adding and not last_adding) or (len(self.moving_numbers) + len(self.done_numbers) == self.env.get_num_agents()):
             return
+        if (self.current_capacity == 0):
+            first_turn = True
+        else:
+            first_turn = False
         for ind in range(self.env.get_num_agents()):
-            if (self.current_capacity == self.capacity):
+            if ((self.current_capacity >= self.capacity and not first_turn) or (first_turn >= True and self.current_capacity == (self.capacity * 5) // 2)):
                 break
             if (self.current_order[ind] not in self.moving_numbers and self.current_order[ind] not in self.done_numbers):
                 self.moving_numbers.add(self.current_order[ind])
