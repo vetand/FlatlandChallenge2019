@@ -196,7 +196,7 @@ class ISearch:
         for ind in range(env.get_num_agents()):
             self.lppath.append([])
         self.reservations = dict() # reservated cells
-        self.maxTime = 2000
+        self.maxTime = 100000
 
     def startallAgents(self, env, control_agent, order): # preparations and performing A* 
                                                          # search for every single agent
@@ -205,6 +205,8 @@ class ISearch:
         path_exists = []
         for i in range(env.get_num_agents()):
             path_exists.append([])
+            
+        start_time = time.time()
 
         for i in range(env.get_num_agents()): # execute A* with every single agent with 
             if (env.agents[order[i]].malfunction_data["malfunction_rate"] != 0):
@@ -215,6 +217,10 @@ class ISearch:
                 path_exists[agent.agentId] = True
             else:
                 path_exists[agent.agentId] = self.startSearch(agent, env)
+                if (int(time.time()) - start_time > 100):
+                    for j in range(i, env.get_num_agents()):
+                        path_exists[order[j]] = True
+                    break
         return path_exists
 
     def checkReservation(self, i, j, t): # low-level code: reservations info
