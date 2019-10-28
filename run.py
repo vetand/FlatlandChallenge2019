@@ -217,7 +217,7 @@ class ISearch:
                 path_exists[agent.agentId] = True
             else:
                 path_exists[agent.agentId] = self.startSearch(agent, env)
-                if (int(time.time()) - start_time > 100):
+                if (int(time.time()) - start_time > 200):
                     for j in range(i, env.get_num_agents()):
                         path_exists[order[j]] = True
                     break
