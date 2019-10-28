@@ -88,10 +88,10 @@ class Node: # low-level code: Node class of a search process (no changes)
         self.parent = None
 
     def __eq__(self, other):
-        return self.i == other.i and self.j == other.j and self.t == other.t and self.dir == other.dir and self.t == other.t and self.spawned == other.spawned
+        return self.i == other.i and self.j == other.j and self.t == other.t and self.dir == other.dir and self.spawned == other.spawned
 
     def __ne__(self, other):
-        return not (self.i == other.i and self.j == other.j and self.t == other.t and self.dir == other.dir and self.t == other.t and self.spawned == other.spawned)
+        return not (self.i == other.i and self.j == other.j and self.t == other.t and self.dir == other.dir and self.spawned == other.spawned)
 
     def __lt__(self, other):
         if (self.i == other.i):
@@ -148,7 +148,7 @@ class global_H: # advanced heuristic - shortest path from this cell to finish wi
         for ind in range(env.get_num_agents()):
             self.start_agent(ind)
         
-    def get_neighbors(self, curNode): # actually, the same procedure with Isearch class
+    def get_neighbors(self, curNode): # actually, the same procedure with Isearch class    
         available = self.env.rail.get_transitions(*[curNode.i, curNode.j], curNode.dir)
         answer = []
         if (available[0] == True):
@@ -188,6 +188,7 @@ class global_H: # advanced heuristic - shortest path from this cell to finish wi
             return self.database[(agentId, x, y, dir)]
         else:
             return INFINITY
+                
 
 class ISearch:
     def __init__(self, env):
@@ -197,20 +198,8 @@ class ISearch:
         self.reservations = dict() # reservated cells
         self.maxTime = 2000
 
-    def startallAgents(self, env, control_agent, order, moving_numbers): # preparations and performing A* 
+    def startallAgents(self, env, control_agent, order): # preparations and performing A* 
                                                          # search for every single agent
-        # preparations step : match required reservations
-        
-        for ind in range(env.get_num_agents()):
-            if order[ind] not in moving_numbers:
-                continue
-            agent = control_agent.allAgents[order[ind]]
-            if (agent.spawned == True):
-                for step in range(agent.obligations):
-                    agent.actions.append(4)
-                    self.reservations[(step, agent.start_i, agent.start_j)] = agent.agentId
-                for step in range(agent.stepsToExitCell):
-                    self.reservations[(step + agent.obligations, agent.start_i, agent.start_j)] = agent.agentId
     
         # path exists is a feedback for high-level class
         path_exists = []
@@ -218,7 +207,7 @@ class ISearch:
             path_exists.append([])
 
         for i in range(env.get_num_agents()): # execute A* with every single agent with 
-            if (order[i] not in moving_numbers):
+            if (env.agents[order[i]].malfunction_data["malfunction_rate"] != 0):
                 path_exists[order[i]] = True
                 continue
             agent = control_agent.allAgents[order[i]]
@@ -246,9 +235,9 @@ class ISearch:
         startNode = Node(agent.start_i, agent.start_j, agent.dir)
         finNode = Node(agent.fin_i, agent.fin_j, agent.dir)
         
-        startNode.h = heuristic.get_heuristic(agent.agentId, startNode.i, startNode.j, startNode.dir)
+        startNode.h = heuristic.get_heuristic(agent.agentId, startNode.i, startNode.j, startNode.dir) + 1
         startNode.f = startNode.g + startNode.h
-        startNode.t = agent.obligations
+        startNode.t = 0
         startNode.spawned = agent.spawned
     
         openHeap = []
@@ -359,13 +348,14 @@ class ISearch:
             not_spawned = Node(curNode.i, curNode.j, curNode.dir)
             not_spawned.g = curNode.g + 1
             not_spawned.t = curNode.t + 1
-            not_spawned.h = curNode.h
+            not_spawned.h = curNode.h + 1
             not_spawned.f = curNode.f + 1
             not_spawned.spawned = False
             successors.append(not_spawned)
             
             spawned_on_this_turn = copy.deepcopy(not_spawned)
             spawned_on_this_turn.spawned = True
+            spawned_on_this_turn.h -= 1
             if (self.correct_point(spawned_on_this_turn, agent) == True):
                 successors.append(spawned_on_this_turn)
             return successors
@@ -483,7 +473,7 @@ def build_start_order(env, type): # custom desine of start agents order
             x1, y1 = env.agents[ind].initial_position
             x2, y2 = env.agents[ind].target
             potential = heuristic.get_heuristic(ind, x1, y1, env.agents[ind].direction) / env.agents[ind].speed_data['speed']
-            if (env.agents[ind].malfunction_data["malfunction"] > 1):
+            if (env.agents[ind].malfunction_data["malfunction_rate"] != 0):
                 queue_1.append([potential, ind])
             else:
                 queue_2.append([potential, ind])
@@ -505,12 +495,6 @@ class submission:
         self.search = ISearch(env)
         self.current_order = build_start_order(env, "speed_also")
         self.stoppers = set()
-        self.no_malfunction = False
-        self.next_agent_add = INFINITY
-        self.moving_numbers = set()
-        self.done_numbers = set()
-        self.capacity = (self.env.height + self.env.width) // 6 - 2 # we don`t want to overcharge the map, so we set the maximum number of trains in elaluation
-        self.current_capacity = 0
           
     def flush_actions(self):
         for ind in range(self.env.get_num_agents()):
@@ -540,10 +524,10 @@ class submission:
     def build_with_order(self, order): # try to build a paths with this agents order
         self.flush_actions()
         self.search = ISearch(self.env)
-        path_exists = self.search.startallAgents(self.env, self.control_agent, order, self.moving_numbers)
-        for ind in range(self.env.get_num_agents()):
-            waiting_time = self.env.agents[ind].malfunction_data['malfunction'] - 1
-            self.control_agent.allAgents[ind].obligations = max(waiting_time, 0)
+        path_exists = self.search.startallAgents(self.env, self.control_agent, order)
+        #for ind in range(self.env.get_num_agents()):
+        #    waiting_time = self.env.agents[ind].malfunction_data['malfunction'] - 1
+        #    self.control_agent.allAgents[ind].obligations = max(waiting_time, 0)
         return path_exists
     
     def check_expected_next(self, agent): # check if the next cell is occupied
@@ -581,8 +565,6 @@ class submission:
     def print_step(self):
         _action = {}
         for ind in range(self.env.get_num_agents()):
-            if (ind not in self.moving_numbers):
-                continue
             agent = self.control_agent.allAgents[ind]
             position = self.env.agents[ind].position
             if agent.current_pos < len(agent.actions):
@@ -624,37 +606,13 @@ class submission:
         self.control_agent.getAgents(self.env, "second")
         self.build()
         self.next_agent_add = INFINITY
-        
-    def add_agents(self):
-        if (self.next_agent_add <= 3):
-            return
-        usual_adding = (self.capacity - len(self.moving_numbers) >= ADD_GROUP_NUMBER)
-        last_adding = (len(self.moving_numbers) + len(self.done_numbers) + ADD_GROUP_NUMBER >= self.env.get_num_agents()) and (self.env.get_num_agents() - len(self.done_numbers) <= self.capacity) 
-        if (not usual_adding and not last_adding) or (len(self.moving_numbers) + len(self.done_numbers) == self.env.get_num_agents()):
-            return
-        for ind in range(self.env.get_num_agents()):
-            if (self.current_capacity == self.capacity):
-                break
-            if (self.current_order[ind] not in self.moving_numbers and self.current_order[ind] not in self.done_numbers):
-                self.moving_numbers.add(self.current_order[ind])
-                self.current_capacity += 1
-        self.next_agent_add = 3
-        
-    def remove_agents(self):
-        for ind in range(self.env.get_num_agents()):
-            if (ind in self.moving_numbers and self.env.agents[ind].status == RailAgentStatus.DONE_REMOVED):
-                self.current_capacity -= 1
-                self.done_numbers.add(ind)
-                self.moving_numbers.remove(ind)
             
             
 def my_controller(env, path_finder):
-    path_finder.remove_agents()
-    path_finder.add_agents()
-    path_finder.update_malfunctions_after()
+    #path_finder.update_malfunctions_after()
     if (path_finder.answer_build == False):
         path_finder.build()
-    path_finder.update_malfunctions_before()
+    #path_finder.update_malfunctions_before()
     return path_finder.print_step()
 
 #####################################################################
