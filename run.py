@@ -523,7 +523,7 @@ class submission:
             self.control_agent.allAgents[ind].current_pos = 0
         
     def build(self): # if we need to build a new paths
-        best_order = self.current_order
+       best_actions = self.control_agent
         best_solution = INFINITY
         for attempt in range(3): # we choose agents which had the longest delays and move them to the top of the queue (within one speed value)`
             path_exists = self.build_with_order(self.current_order, 200)
@@ -543,8 +543,7 @@ class submission:
                     new_order.append(new_order_queue[speed_value][ind][1])
             self.current_order = copy.deepcopy(new_order)
         
-        self.current_order = copy.deepcopy(best_order)
-        path_exists = self.build_with_order(self.current_order, 200)
+        self.control_agent = copy.deepcopy(best_actions)
         self.answer_build = True
         
     def build_with_order(self, order, time_limit): # try to build a paths with this agents order
