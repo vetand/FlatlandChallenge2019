@@ -8,11 +8,8 @@ import heapq
 import copy
 import numpy as np
 from queue import Queue
-#import random
-#random.seed(47)
 EPS = 0.001
 INFINITY = 1000000007
-ADD_GROUP_NUMBER = 5
 
 
 
@@ -29,6 +26,9 @@ remote_client = FlatlandRemoteClient()
 # of the agents
 #####################################################################
 
+def getStepsToExitCell(v):
+    return int(1 / v + EPS)
+
 class Agent: # agent general and instant information
     def __init__(self, agentId):
         self.start_i = -1 # start (from previous reset)
@@ -41,9 +41,7 @@ class Agent: # agent general and instant information
                              # perform some steps, so we must take it into account;
                              # right now this is delay time in start cell
         self.agentId = agentId # ID (with the same order, as flatland has)
-        self.malfunction = False # if malfunction began just now, so we need a reset
         self.spawned = False
-        self.wait_after_spawn = 0
 
     def getAgent(self, env, type_used):
         if (env.agents[self.agentId].position == None):
@@ -57,7 +55,7 @@ class Agent: # agent general and instant information
         self.fin_j = env.agents[self.agentId].target[1]
 
         self.dir = env.agents[self.agentId].direction
-        self.stepsToExitCell = int(1 / env.agents[self.agentId].speed_data["speed"] + EPS) # number of steps required to
+        self.stepsToExitCell = getStepsToExitCell(env.agents[self.agentId].speed_data["speed"]) # number of steps required to
                                                                                  # move to next cell
 
 class Agents: # agent`s rapport between themselves
@@ -198,27 +196,23 @@ class ISearch:
         self.reservations = dict() # reservated cells
         self.maxTime = 100000
 
-    def startallAgents(self, env, control_agent, order): # preparations and performing A* 
-                                                         # search for every single agent
+    def startallAgents(self, env, control_agent, order, time_limit): # preparations and performing A* 
+                                                         # search for every single agent of given order
     
         # path exists is a feedback for high-level class
         path_exists = []
         for i in range(env.get_num_agents()):
             path_exists.append([])
-            
-        start_time = time.time()
 
-        for i in range(env.get_num_agents()): # execute A* with every single agent with 
-            if (env.agents[order[i]].malfunction_data["malfunction_rate"] != 0):
-                path_exists[order[i]] = True
-                continue
+        start_time = time.time()
+        for i in range(len(order)): # execute A* with every single agent with 
             agent = control_agent.allAgents[order[i]]
             if (agent.spawned == True and env.agents[agent.agentId].position == None):
                 path_exists[agent.agentId] = True
             else:
                 path_exists[agent.agentId] = self.startSearch(agent, env)
-                if (int(time.time()) - start_time > 200):
-                    for j in range(i, env.get_num_agents()):
+                if (int(time.time()) - start_time > time_limit):
+                    for j in range(i, len(order)):
                         path_exists[order[j]] = True
                     break
         return path_exists
@@ -240,7 +234,7 @@ class ISearch:
         # start of A* algorithm
         startNode = Node(agent.start_i, agent.start_j, agent.dir)
         finNode = Node(agent.fin_i, agent.fin_j, agent.dir)
-        
+
         startNode.h = heuristic.get_heuristic(agent.agentId, startNode.i, startNode.j, startNode.dir) + 1
         startNode.f = startNode.g + startNode.h
         startNode.t = 0
@@ -350,7 +344,7 @@ class ISearch:
         inter_answer.append(Node(curNode.i, curNode.j, curNode.dir))
         successors = []
         
-        if (curNode.spawned == False):
+        if (curNode.spawned == False): # if the agents is not spawned there are two opportunities - to remain unspawned and to enter the simulation
             not_spawned = Node(curNode.i, curNode.j, curNode.dir)
             not_spawned.g = curNode.g + 1
             not_spawned.t = curNode.t + 1
@@ -380,9 +374,10 @@ class ISearch:
             if not self.correct_point(scNode, agent):
                 continue
 
-            if (not self.checkReservation(scNode.i, scNode.j, curNode.t) or not self.checkReservation(curNode.i, curNode.j, scNode.t)):
+            if (not self.checkReservation(scNode.i, scNode.j, curNode.t) or not self.checkReservation(curNode.i, curNode.j, scNode.t)): # definitely no edge conflict
                 successors.append(scNode)
                 continue
+
             # we don`t catch edge conflict only if agents have the same speed (so, no changes)
             edge_conflict = ((self.get_occupator(scNode.i, scNode.j, curNode.t) == self.get_occupator(curNode.i, curNode.j, scNode.t)) and 
                             (not self.get_occupator(curNode.i, curNode.j, scNode.t) == self.get_occupator(curNode.i, curNode.j, curNode.t)))
@@ -390,7 +385,7 @@ class ISearch:
                 successors.append(scNode)
         return successors
 
-    def makePrimaryPath(self, curNode, startNode, agent):
+    def makePrimaryPath(self, curNode, startNode, agent): # path of nodes
 
         wait_action = False
         while curNode != startNode:
@@ -474,7 +469,7 @@ def build_start_order(env, type): # custom desine of start agents order
             
     if (type == "speed_also"):
         queue = []
-        for i in range(5):
+        for speed_value in range(10):
             queue.append([])
         for ind in range(len(env.agents)):
             x1, y1 = env.agents[ind].initial_position
@@ -483,12 +478,12 @@ def build_start_order(env, type): # custom desine of start agents order
             if (env.agents[ind].malfunction_data["malfunction_rate"] != 0):
                 queue[0].append([potential, ind])
             else:
-                queue[int(1 / env.agents[ind].speed_data['speed'] + EPS)].append([potential, ind])
-        for i in range(5):
-            queue[i].sort()
-        for i in range(5):
-            for ind in range(len(queue[i])):
-                answer.append(queue[i][ind][1])
+                queue[getStepsToExitCell(env.agents[ind].speed_data['speed'])].append([potential, ind])
+        for speed_value in range(10):
+            queue[speed_value].sort()
+        for speed_value in range(1, 10):
+            for ind in range(len(queue[speed_value])):
+                answer.append(queue[speed_value][ind][1])
     return answer
 
 
@@ -500,73 +495,63 @@ class submission:
         self.answer_build = False
         self.search = ISearch(env)
         self.current_order = build_start_order(env, "speed_also")
-        self.stoppers = set()
-          
+        
+    def get_agent_reward(self, number):
+        if (self.env.agents[number].position == None): # agent not spawned
+            x, y = self.env.agents[number].initial_position
+        else:
+            x, y = self.env.agents[number].position
+        ideal_length = getStepsToExitCell(self.env.agents[number].speed_data['speed']) * heuristic.get_heuristic(number, x, y, self.env.agents[number].direction) + 1
+        real_length = len(self.control_agent.allAgents[number].actions)
+        if (real_length == 0):
+            return -8 * (self.env.width + self.env.height + 20)
+        return ideal_length - real_length
+    
+    def overall_reward(self):
+        answer = 0
+        for ind in range(len(self.current_order)):
+            num = self.current_order[ind]
+            if (len(self.control_agent.allAgents[num].actions) == 0):
+                answer += 8 * (self.env.width + self.env.height + 20)
+            else:
+                answer += len(self.control_agent.allAgents[num].actions)
+        return answer
+
     def flush_actions(self):
         for ind in range(self.env.get_num_agents()):
-            self.control_agent.allAgents[ind].current_pos = 0
             self.control_agent.allAgents[ind].actions = []
+            self.control_agent.allAgents[ind].current_pos = 0
         
     def build(self): # if we need to build a new paths
-        for attempt in range(10): # we can change number of attempts in future
-            path_exists = self.build_with_order(self.current_order)
-            #print(attempt, self.current_order, path_exists)
+        best_order = self.current_order
+        best_solution = INFINITY
+        for attempt in range(10): # we choose agents which had the longest delays and move them to the top of the queue (within one speed value)`
+            path_exists = self.build_with_order(self.current_order, 25)
+            if (self.overall_reward() < best_solution):
+                best_solution = self.overall_reward()
+                best_order = copy.deepcopy(self.current_order)
+            new_order_queue = []
+            for speed_value in range(10): # the minimum speed must be upper than 1/10
+                new_order_queue.append([])
+            for ind in range(len(self.current_order)):
+                potential = [self.get_agent_reward(self.current_order[ind]), self.current_order[ind]]
+                new_order_queue[getStepsToExitCell(self.env.agents[self.current_order[ind]].speed_data['speed'])].append(potential)
             new_order = []
-            answer_ready = True
-            for ind in range(self.env.get_num_agents()):
-                if (path_exists[self.current_order[ind]] == False):
-                    new_order.append(self.current_order[ind])
-                    answer_ready = False
-            if (answer_ready):
-                break
-            #random.shuffle(new_order)
-            for ind in range(self.env.get_num_agents()):
-                if (path_exists[self.current_order[ind]] == True):
-                    new_order.append(self.current_order[ind])
-            self.current_order = copy.deepcopy(new_order) # at the beginning of new order are only agents
-                                                          # which didn`t manage to build their paths
+            for speed_value in range(10):
+                new_order_queue[speed_value].sort()
+                for ind in range(len(new_order_queue[speed_value])):
+                    new_order.append(new_order_queue[speed_value][ind][1])
+            self.current_order = copy.deepcopy(new_order)
+        
+        self.current_order = copy.deepcopy(best_order)
+        path_exists = self.build_with_order(self.current_order, 200)
         self.answer_build = True
         
-    def build_with_order(self, order): # try to build a paths with this agents order
+    def build_with_order(self, order, time_limit): # try to build a paths with this agents order
         self.flush_actions()
         self.search = ISearch(self.env)
-        path_exists = self.search.startallAgents(self.env, self.control_agent, order)
-        #for ind in range(self.env.get_num_agents()):
-        #    waiting_time = self.env.agents[ind].malfunction_data['malfunction'] - 1
-        #    self.control_agent.allAgents[ind].obligations = max(waiting_time, 0)
+        path_exists = self.search.startallAgents(self.env, self.control_agent, order, time_limit)
         return path_exists
-    
-    def check_expected_next(self, agent): # check if the next cell is occupied
-        if agent.current_pos + 1 >= len(self.search.lppath[agent.agentId]):
-            return True
-        nextNode = self.search.lppath[agent.agentId][agent.current_pos + 1]
-        position = (nextNode.i, nextNode.j)
-        if position in self.stoppers:
-            return False
-        else:
-            return True
-        
-    def get_nearest_malfunction(self):
-        minimum = INFINITY
-        for ind in range(self.env.get_num_agents()):
-            next_malfunction = self.env.agents[ind].malfunction_data['next_malfunction'] + self.env.agents[ind].malfunction_data['malfunction']
-            if self.env.agents[ind].malfunction_data['malfunction_rate'] == 0.0 or self.env.agents[ind].position == None: # this agent can`t be broken
-                continue
-            minimum = min(minimum, next_malfunction)
-        return minimum
-    
-    def update_malfunctions_before(self): # find agents which won`t be able to complete the next turn
-        steps_remain = self.get_nearest_malfunction()
-        self.next_agent_add -= 1
-        for ind in range(self.env.get_num_agents()):
-            if min(steps_remain, self.next_agent_add) <= self.control_agent.allAgents[ind].stepsToExitCell and self.env.agents[ind].speed_data['position_fraction'] == 0.0 and not self.no_malfunction:
-                self.stoppers.add(self.env.agents[ind].position)
-        # maybe other agents need to stop
-        for i in range(10): # I hope there won`t be more than 10 trains in a row
-            for ind in range(self.env.get_num_agents()):
-                agent = self.control_agent.allAgents[ind]
-                if not self.check_expected_next(agent):
-                    self.stoppers.add(self.env.agents[ind].position)
                     
     def print_step(self):
         _action = {}
@@ -574,51 +559,15 @@ class submission:
             agent = self.control_agent.allAgents[ind]
             position = self.env.agents[ind].position
             if agent.current_pos < len(agent.actions):
-                if position not in self.stoppers:
-                    if (agent.actions[agent.current_pos] != 4):
-                        agent.spawned = True
-                    _action[ind] = agent.actions[agent.current_pos]
-                    self.control_agent.allAgents[ind].current_pos += 1
-                else:
-                    _action[ind] = 4 # the next agent`s cell is occupied or malfunction
+                if (agent.actions[agent.current_pos] != 4):
+                    agent.spawned = True
+                _action[ind] = agent.actions[agent.current_pos]
+                self.control_agent.allAgents[ind].current_pos += 1
         return _action
-    
-    def update_malfunctions_after(self): # we should decide if we need a re-plan due to a new malfunction
-                                         # and update some info
-        self.stoppers = set()
-        need_reset = (self.next_agent_add == 0)
-        for ind in range(self.env.get_num_agents()):
-            if (ind not in self.moving_numbers):
-                continue
-            agent = self.control_agent.allAgents[ind]
-            if self.env.agents[ind].malfunction_data['malfunction'] > 1 and not agent.malfunction:
-                agent.malfunction = True
-                need_reset = True
-            if self.env.agents[ind].malfunction_data['malfunction'] <= 1:
-                agent.malfunction = False
-            if self.env.agents[ind].position == None:
-                agent_position = self.env.agents[ind].initial_position
-            else:
-                agent_position = self.env.agents[ind].position
-            current_position = Node(agent_position[0], 
-                                    agent_position[1],
-                                    self.env.agents[ind].direction )
-            waiting_time = self.env.agents[ind].malfunction_data['malfunction'] - 1
-            self.control_agent.allAgents[ind].obligations = max(waiting_time, 0)
-        if need_reset:
-            self.reset()
-            
-    def reset(self):
-        self.control_agent.getAgents(self.env, "second")
-        self.build()
-        self.next_agent_add = INFINITY
-            
-            
+                     
 def my_controller(env, path_finder):
-    #path_finder.update_malfunctions_after()
     if (path_finder.answer_build == False):
         path_finder.build()
-    #path_finder.update_malfunctions_before()
     return path_finder.print_step()
 
 #####################################################################
