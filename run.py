@@ -525,11 +525,11 @@ class submission:
     def build(self): # if we need to build a new paths
         best_order = self.current_order
         best_solution = INFINITY
-        for attempt in range(10): # we choose agents which had the longest delays and move them to the top of the queue (within one speed value)`
-            path_exists = self.build_with_order(self.current_order, 25)
+        for attempt in range(3): # we choose agents which had the longest delays and move them to the top of the queue (within one speed value)`
+            path_exists = self.build_with_order(self.current_order, 200)
             if (self.overall_reward() < best_solution):
                 best_solution = self.overall_reward()
-                best_order = copy.deepcopy(self.current_order)
+                best_actions = copy.deepcopy(self.control_agent)
             new_order_queue = []
             for speed_value in range(10): # the minimum speed must be upper than 1/10
                 new_order_queue.append([])
