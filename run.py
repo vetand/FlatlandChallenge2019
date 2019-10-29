@@ -473,22 +473,22 @@ def build_start_order(env, type): # custom desine of start agents order
             answer.append(queue[i][1])
             
     if (type == "speed_also"):
-        queue_1 = []
-        queue_2 = []
+        queue = []
+        for i in range(5):
+            queue.append([])
         for ind in range(len(env.agents)):
             x1, y1 = env.agents[ind].initial_position
             x2, y2 = env.agents[ind].target
             potential = heuristic.get_heuristic(ind, x1, y1, env.agents[ind].direction) / env.agents[ind].speed_data['speed']
             if (env.agents[ind].malfunction_data["malfunction_rate"] != 0):
-                queue_1.append([potential, ind])
+                queue[0].append([potential, ind])
             else:
-                queue_2.append([potential, ind])
-        queue_1.sort()
-        queue_2.sort()
-        for i in range(len(queue_2)):
-            answer.append(queue_2[i][1])
-        for i in range(len(queue_1)):
-            answer.append(queue_1[i][1])
+                queue[int(1 / env.agents[ind].speed_data['speed'] + EPS)].append([potential, ind])
+        for i in range(5):
+            queue[i].sort()
+        for i in range(5):
+            for ind in range(len(queue[i])):
+                answer.append(queue[i][ind][1])
     return answer
 
 
