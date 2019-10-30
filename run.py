@@ -496,7 +496,7 @@ class submission:
         best_solution = INFINITY
         best_actions = self.control_agent
         for attempt in range(4): # we choose agents which had the longest delays and move them to the top of the queue (within one speed value)
-            path_exists = self.build_with_order(self.current_order, 400)
+            path_exists = self.build_with_order(self.current_order, 190)
             if (self.overall_reward() < best_solution):
                 best_solution = self.overall_reward()
                 best_actions = copy.deepcopy(self.control_agent)
