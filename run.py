@@ -495,7 +495,7 @@ class submission:
     def build(self): # if we need to build a new paths
         best_solution = INFINITY
         best_actions = self.control_agent
-        for attempt in range(4): # we choose agents which had the longest delays and move them to the top of the queue (within one speed value)
+        for attempt in range(3): # we choose agents which had the longest delays and move them to the top of the queue (within one speed value)
             path_exists = self.build_with_order(self.current_order, 190)
             if (self.overall_reward() < best_solution):
                 best_solution = self.overall_reward()
@@ -514,7 +514,6 @@ class submission:
             self.current_order = copy.deepcopy(new_order)
         
         self.control_agent = copy.deepcopy(best_actions)
-        self.search.make_safe_layer(self.env)
         self.answer_build = True
         
     def build_with_order(self, order, time_limit): # try to build a paths with this agents order
@@ -564,6 +563,8 @@ class submission:
 def my_controller(env, path_finder):
     if (path_finder.answer_build == False):
         path_finder.build()
+    if (path_finder.current_step == 1):
+        path_finder.search.make_safe_layer(path_finder.env)
     return path_finder.print_step()
 
 #####################################################################
