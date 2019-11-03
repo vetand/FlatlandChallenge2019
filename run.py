@@ -487,6 +487,7 @@ class submission:
         self.current_step = 0
         self.maxStep = 8 * (env.width + env.height + 20)
         self.prev_action = [2] * self.env.get_num_agents()
+        self.overall_time = 0
         
     def get_agent_reward(self, number):
         if (self.env.agents[number].position == None): # agent not spawned
@@ -668,7 +669,7 @@ def my_controller(env, path_finder):
         path_finder.build()
     if (path_finder.current_step == path_finder.maxStep // 10): # additional placement of non-malfunctioning agents (as the result of small time limits on the first step)
         path_finder.reset_third()
-    if (path_finder.current_step >= (path_finder.maxStep * 5) // 8 and path_finder.current_step % 10 == 0): # re-plan paths every 10 steps
+    if (self.overall_time <= 1000 and path_finder.current_step >= (path_finder.maxStep * 5) // 8 and path_finder.current_step % 10 == 0): # re-plan paths every 10 steps
         path_finder.build_malfunctioning()
     return path_finder.print_step()
 
@@ -767,6 +768,7 @@ while True:
         time_start = time.time()
         action = my_controller(local_env, path_finder)
         time_taken = time.time() - time_start
+        path_finder.overall_time += time_taken
         time_taken_by_controller.append(time_taken)
 
         # Perform the chosen action on the environment.
