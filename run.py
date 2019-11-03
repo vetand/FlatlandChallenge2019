@@ -593,7 +593,7 @@ class submission:
         self.set_obligations()
         self.control_agent.getAgents(self.env)
         for attempt in range(10):
-            if ((self.current_step - 10) * 2 < self.maxStep): # malfunctioning agents enter the environment, we can afford not all of them, the maximumm planning time is 15 seconds
+            if (((self.current_step - 10) * 5) // 8 < self.maxStep): # malfunctioning agents enter the environment, we can afford not all of them, the maximumm planning time is 15 seconds
                 path_exists = self.build_with_order_malfunctioning(self.current_order_malfunctions, 8)
                 new_order = []
                 for ind in range(len(self.current_order_malfunctions)):
