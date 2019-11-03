@@ -8,10 +8,9 @@ import heapq
 import copy
 import numpy as np
 from queue import Queue
-EPS = 0.001
+EPS = 0.0001
 INFINITY = 1000000007
-SAFE_LAYER = 60
-
+SAFE_LAYER = 24
 
 #####################################################################
 # Instantiate a Remote Client
@@ -37,9 +36,10 @@ class Agent: # agent general and instant information
         self.fin_j = -1
         self.current_pos = 0 # current position of a personal plan
         self.actions = [] # personal plan
-        self.obligations = []
+        self.obligations = None
         self.agentId = agentId # ID (with the same order, as flatland has)
         self.spawned = False
+        self.next_malfunction = INFINITY
 
     def getAgent(self, env):
         if (env.agents[self.agentId].position == None):
@@ -63,9 +63,13 @@ class Agents: # agent`s rapport between themselves
 
     def getAgents(self, env):
         self.size = env.get_num_agents()
-        for ind in range(self.size):
-            self.allAgents.append(Agent(ind, env))
-            self.allAgents[ind].getAgent(env)
+        if (self.allAgents == []):
+            for ind in range(self.size):
+                self.allAgents.append(Agent(ind, env))
+                self.allAgents[ind].getAgent(env)
+        else:
+            for ind in range(self.size):
+                self.allAgents[ind].getAgent(env)
 
 class Node: # low-level code: Node class of a search process (no changes)
     def __init__(self, i, j, dir):
@@ -78,6 +82,7 @@ class Node: # low-level code: Node class of a search process (no changes)
         self.dir = dir
         self.spawned = False
         self.parent = None
+        self.in_simulation = -1
 
     def __eq__(self, other):
         return self.i == other.i and self.j == other.j and self.t == other.t and self.dir == other.dir and self.spawned == other.spawned
@@ -197,7 +202,19 @@ class ISearch:
         # path exists is a feedback for high-level class
         path_exists = []
         for i in range(env.get_num_agents()):
-            path_exists.append([])
+            path_exists.append(False)
+            
+        if (type == "malfunctions"):
+            for ind in range(len(order)):
+                agent = control_agent.allAgents[order[ind]]
+                for step in range(current_step, agent.obligations.t):
+                    self.temporary_reservations[(step, agent.start_i, agent.start_j)] = agent.agentId
+                    agent.actions.append(4)
+                if (env.agents[order[ind]].position == None):
+                    continue
+                for step in range(agent.stepsToExitCell):
+                    self.temporary_reservations[(step + agent.obligations.t, agent.obligations.i, agent.obligations.j)] = agent.agentId
+            
 
         start_time = time.time()
         for i in range(len(order)): # execute A* with every single agent with 
@@ -205,10 +222,8 @@ class ISearch:
             if (agent.spawned == True and env.agents[agent.agentId].position == None):
                 path_exists[agent.agentId] = True
             else:
-                path_exists[agent.agentId] = self.startSearch(agent, env, current_step)
+                path_exists[agent.agentId] = self.startSearch(agent, env, current_step, type)
                 if (int(time.time()) - start_time > time_limit):
-                    for j in range(i, len(order)):
-                        path_exists[order[j]] = True
                     break
         return path_exists
 
@@ -221,22 +236,16 @@ class ISearch:
         else:
             return self.temporary_reservations[(t, i, j)]
 
-    def check_line(self, left_bound, right_bound, i, j):
-        for step in range(max(left_bound, 0), right_bound + 1):
-            if (self.checkReservation(i, j, step) == True):
-                return False
-        return True
-
-    def startSearch(self, agent, env, current_step):
+    def startSearch(self, agent, env, current_step, type):
 
         # start of A* algorithm
-        startNode = Node(agent.start_i, agent.start_j, agent.dir)
+        startNode = agent.obligations
         finNode = Node(agent.fin_i, agent.fin_j, agent.dir)
-
-        startNode.h = heuristic.get_heuristic(agent.agentId, startNode.i, startNode.j, startNode.dir) + 1
-        startNode.f = startNode.g + startNode.h
-        startNode.t = current_step
-        startNode.spawned = agent.spawned
+        if (startNode.spawned):
+            startNode.in_simulation = 0
+            
+        if (agent.spawned and not self.correct_point(startNode, agent)):
+            return False
     
         openHeap = []
         openCopy = dict()
@@ -302,7 +311,7 @@ class ISearch:
         
 
         if pathFound:
-            self.makePrimaryPath(finNode, startNode, agent)
+            self.makePrimaryPath(finNode, startNode, agent, type)
             self.makeFlatlandFriendlyPath(agent)
             return True
         else:
@@ -328,14 +337,15 @@ class ISearch:
         position = [curNode.i, curNode.j]
         available = env.rail.get_transitions(*position, curNode.dir)
         inter_answer = []
-        if (available[0] == True):
-                inter_answer.append(Node(curNode.i - 1, curNode.j, 0))
-        if (available[1] == True):
-                inter_answer.append(Node(curNode.i, curNode.j + 1, 1))
-        if (available[2] == True):
-                inter_answer.append(Node(curNode.i + 1, curNode.j, 2))
-        if (available[3] == True):
-                inter_answer.append(Node(curNode.i, curNode.j - 1, 3))
+        if not (curNode.in_simulation + agent.stepsToExitCell >= agent.next_malfunction and curNode.in_simulation <= agent.next_malfunction + SAFE_LAYER):
+            if (available[0] == True):
+                    inter_answer.append(Node(curNode.i - 1, curNode.j, 0))
+            if (available[1] == True):
+                    inter_answer.append(Node(curNode.i, curNode.j + 1, 1))
+            if (available[2] == True):
+                    inter_answer.append(Node(curNode.i + 1, curNode.j, 2))
+            if (available[3] == True):
+                    inter_answer.append(Node(curNode.i, curNode.j - 1, 3))
         inter_answer.append(Node(curNode.i, curNode.j, curNode.dir))
         successors = []
         
@@ -346,10 +356,12 @@ class ISearch:
             not_spawned.h = curNode.h
             not_spawned.f = curNode.f + 1
             not_spawned.spawned = False
+            not_spawned.in_simulation = -1
             successors.append(not_spawned)
             
             spawned_on_this_turn = copy.deepcopy(not_spawned)
             spawned_on_this_turn.spawned = True
+            spawned_on_this_turn.in_simulation = 0
             spawned_on_this_turn.h -= 1
             spawned_on_this_turn.f -= 1
             if (self.correct_point(spawned_on_this_turn, agent) == True):
@@ -360,6 +372,7 @@ class ISearch:
             scNode.g = curNode.g + 1
             scNode.h = heuristic.get_heuristic(agent.agentId, scNode.i, scNode.j, scNode.dir)
             scNode.f = scNode.g + scNode.h
+            scNode.in_simulation = curNode.in_simulation + agent.stepsToExitCell
             scNode.spawned = True
 
             if scNode.i == curNode.i and scNode.j == curNode.j:
@@ -375,22 +388,28 @@ class ISearch:
                 continue
 
             # we don`t catch edge conflict only if agents have the same speed (so, no changes)
-            edge_conflict = ((self.get_occupator(scNode.i, scNode.j, curNode.t) == self.get_occupator(curNode.i, curNode.j, scNode.t)) and 
-                            (not self.get_occupator(curNode.i, curNode.j, scNode.t) == self.get_occupator(curNode.i, curNode.j, curNode.t)))
+            edge_conflict = ((self.get_occupator(scNode.i, scNode.j, curNode.t) == self.get_occupator(curNode.i, curNode.j, scNode.t)) and
+                            (self.get_occupator(scNode.i, scNode.j, curNode.t) != agent.agentId))
             if (not edge_conflict):
                 successors.append(scNode)
         return successors
 
-    def makePrimaryPath(self, curNode, startNode, agent): # path of nodes
+    def makePrimaryPath(self, curNode, startNode, agent, type): # path of nodes
 
         wait_action = False
         while curNode != startNode:
             self.lppath[agent.agentId].append(curNode)
             if not wait_action:
                 for step in range(agent.stepsToExitCell):
-                    self.reservations[(curNode.t + step, curNode.i, curNode.j)] = agent.agentId
+                    if (type == "usual"):
+                        self.reservations[(curNode.t + step, curNode.i, curNode.j)] = agent.agentId
+                    else:
+                        self.temporary_reservations[(curNode.t + step, curNode.i, curNode.j)] = agent.agentId
             elif curNode.spawned == True:
-                self.reservations[(curNode.t, curNode.i, curNode.j)] = agent.agentId
+                if (type == "usual"):
+                    self.reservations[(curNode.t, curNode.i, curNode.j)] = agent.agentId
+                else:                    
+                    self.temporary_reservations[(curNode.t, curNode.i, curNode.j)] = agent.agentId
             if curNode.i == curNode.parent.i and curNode.j == curNode.parent.j:
                 wait_action = True
             else:
@@ -400,9 +419,15 @@ class ISearch:
         self.lppath[agent.agentId].append(curNode)
         if not wait_action:
             for step in range(agent.stepsToExitCell):
-                self.reservations[(curNode.t + step, curNode.i, curNode.j)] = agent.agentId
+                if (type == "usual"):
+                    self.reservations[(curNode.t + step, curNode.i, curNode.j)] = agent.agentId
+                else:
+                    self.temporary_reservations[(curNode.t + step, curNode.i, curNode.j)] = agent.agentId
         elif curNode.spawned == True:
-            self.reservations[(curNode.t, curNode.i, curNode.j)] = agent.agentId
+            if (type == "usual"):
+                self.reservations[(curNode.t, curNode.i, curNode.j)] = agent.agentId
+            else:                    
+                self.temporary_reservations[(curNode.t, curNode.i, curNode.j)] = agent.agentId
 
         self.lppath[agent.agentId] = self.lppath[agent.agentId][::-1]
 
@@ -423,16 +448,6 @@ class ISearch:
                 for step in range(agent.stepsToExitCell):
                     agent.actions.append(1)
                     
-    def make_safe_layer(self, env):
-        for i in range(env.height):
-            for j in range(env.width):
-                previous_reserved = INFINITY
-                for time in range(self.maxTime - 1, -1, -1):
-                    if ((time, i, j) in self.reservations):
-                        previous_reserved = time
-                    if (previous_reserved - time < SAFE_LAYER):
-                        self.reservations[(time, i, j)] = env.get_num_agents()
-                    
 def build_start_order(env, type): # custom desine of start agents order, there is only one worthwhile variant
             
     answer = []
@@ -449,7 +464,7 @@ def build_start_order(env, type): # custom desine of start agents order, there i
             else:
                 queue[getStepsToExitCell(env.agents[ind].speed_data['speed'])].append([potential, ind])
         if (type == "for_malfunctions"):
-            if (env.agents[ind].malfunction_data["malfunction_rate"] == 0):
+            if (env.agents[ind].malfunction_data["malfunction_rate"] != 0):
                 queue[getStepsToExitCell(env.agents[ind].speed_data['speed'])].append([potential, ind])
     for speed_value in range(10):
         queue[speed_value].sort()
@@ -470,6 +485,8 @@ class submission:
         self.current_order = build_start_order(env, "speed_also")
         self.current_order_malfunctions = build_start_order(env, "for_malfunctions")
         self.current_step = 0
+        self.maxStep = 8 * (env.width + env.height + 20)
+        self.prev_action = [2] * self.env.get_num_agents()
         
     def get_agent_reward(self, number):
         if (self.env.agents[number].position == None): # agent not spawned
@@ -479,7 +496,7 @@ class submission:
         ideal_length = getStepsToExitCell(self.env.agents[number].speed_data['speed']) * heuristic.get_heuristic(number, x, y, self.env.agents[number].direction) + 1
         real_length = len(self.control_agent.allAgents[number].actions)
         if (real_length == 0):
-            return -8 * (self.env.width + self.env.height + 20)
+            return -self.maxStep
         return ideal_length - real_length
     
     def overall_reward(self):
@@ -487,16 +504,63 @@ class submission:
         for ind in range(len(self.current_order)):
             num = self.current_order[ind]
             if (len(self.control_agent.allAgents[num].actions) == 0):
-                answer += 8 * (self.env.width + self.env.height + 20) * self.env.agents[num].speed_data['speed']
+                answer += self.maxStep * self.env.agents[num].speed_data['speed']
             else:
                 answer += len(self.control_agent.allAgents[num].actions) * self.env.agents[num].speed_data['speed']
         return answer
+    
+    def make_obligation(self, number): # in fact this is a start Node (which the agent is obligated to reach before it starts to make any decisions)
+        if (self.env.agents[number].position != None):
+            start_i, start_j = self.env.agents[number].position
+        else:
+            start_i, start_j = self.env.agents[number].initial_position
+        direction = self.env.agents[number].direction
+        self.control_agent.allAgents[number].obligations = Node(start_i, start_j, self.env.agents[number].direction)
+        agent = self.control_agent.allAgents[number]
+        self.control_agent.allAgents[number].obligations.h = heuristic.get_heuristic(agent.agentId, start_i, start_j, direction) + (not agent.spawned)
+        self.control_agent.allAgents[number].obligations.spawned = agent.spawned
+        self.control_agent.allAgents[number].obligations.f = self.control_agent.allAgents[number].obligations.h
+        if (self.env.agents[number].speed_data['position_fraction'] == 0.0):
+            self.control_agent.allAgents[number].obligations.t = self.current_step + max(self.env.agents[number].malfunction_data['malfunction'] - 1,  0) * int(agent.spawned)
+        else:
+            current_direction = self.env.agents[number].direction
+            if (self.prev_action[number] == 1):
+                current_direction -= 1
+            elif (self.prev_action[number] == 3):
+                current_direction += 1
+            current_direction %= 4
+            self.control_agent.allAgents[number].obligations.dir = current_direction
+            if (current_direction == 0):
+                self.control_agent.allAgents[number].obligations.i -= 1
+            elif (current_direction == 1):
+                self.control_agent.allAgents[number].obligations.j += 1
+            elif (current_direction == 2):
+                self.control_agent.allAgents[number].obligations.i += 1
+            else:
+                self.control_agent.allAgents[number].obligations.j -= 1
+            remain = max(self.env.agents[number].malfunction_data['malfunction'] - 1,  0) * int(agent.spawned) + int((1 - self.env.agents[number].speed_data['position_fraction'] + EPS) / self.env.agents[number].speed_data['speed'])
+            self.control_agent.allAgents[number].obligations.t = self.current_step + remain
+            
+    def count_next_malfunction(self, number):
+        if (self.env.agents[number].malfunction_data["malfunction_rate"] == 0 or self.env.agents[number].status == RailAgentStatus.DONE_REMOVED):
+            self.control_agent.allAgents[number].next_malfunction = INFINITY
+            return
+        if (self.env.agents[number].malfunction_data["malfunction"] != 0):
+            self.control_agent.allAgents[number].next_malfunction = 0
+            return
+        self.control_agent.allAgents[number].next_malfunction = self.env.agents[number].malfunction_data["next_malfunction"]
+            
+    def set_obligations(self):
+        for ind in range(self.env.get_num_agents()):
+            self.make_obligation(ind)
+            self.count_next_malfunction(ind)
         
     def build(self): # if we need to build a new paths
         best_solution = INFINITY
         best_actions = self.control_agent
-        for attempt in range(3): # we choose agents which had the longest delays and move them to the top of the queue (within one speed value)
-            path_exists = self.build_with_order(self.current_order, 190)
+        self.set_obligations()
+        for attempt in range(1): # we choose agents which had the longest delays and move them to the top of the queue (within one speed value)
+            path_exists = self.build_with_order(self.current_order, 350, (attempt == 0))
             if (self.overall_reward() < best_solution):
                 best_solution = self.overall_reward()
                 best_actions = copy.deepcopy(self.control_agent)
@@ -516,36 +580,60 @@ class submission:
         self.control_agent = copy.deepcopy(best_actions)
         self.answer_build = True
         
-    def build_with_order(self, order, time_limit): # try to build a paths with this agents order
-        for ind in range(self.env.get_num_agents()):
-            self.control_agent.allAgents[ind].actions = []
-            self.control_agent.allAgents[ind].current_pos = 0
-        self.search = ISearch(self.env)
+    def build_with_order(self, order, time_limit, first_time): # try to build a paths with this agents order
+        if first_time == True:
+            for ind in range(len(self.current_order)):
+                self.control_agent.allAgents[self.current_order[ind]].actions = []
+                self.control_agent.allAgents[self.current_order[ind]].current_pos = 0
+            self.search = ISearch(self.env)
         path_exists = self.search.startallAgents("usual", self.env, self.control_agent, order, time_limit, self.current_step)
         return path_exists
     
     def build_malfunctioning(self):
+        self.set_obligations()
+        self.control_agent.getAgents(self.env)
         for attempt in range(10):
-            path_exists = self.build_with_order_malfunctioning(self, self.current_order_malfunctions)
+            if ((self.current_step - 10) * 2 < self.maxStep): # malfunctioning agents enter the environment, we can afford not all of them, the maximumm planning time is 15 seconds
+                path_exists = self.build_with_order_malfunctioning(self.current_order_malfunctions, 15)
+                new_order = []
+                for ind in range(len(self.current_order_malfunctions)):
+                    if (path_exists[self.current_order_malfunctions[ind]] == True):
+                        new_order.append(self.current_order_malfunctions[ind])
+                self.current_order_malfunctions = copy.deepcopy(new_order)
+            else:
+                path_exists = self.build_with_order_malfunctioning(self.current_order_malfunctions, INFINITY)
             new_order = []
+            correct_answer = True
+            wasted = False
             for ind in range(len(self.current_order_malfunctions)):
                 if (path_exists[self.current_order_malfunctions[ind]] == False):
+                    if (ind == 0 and attempt >= 3):
+                        wasted = True
+                    correct_answer = False
                     new_order.append(self.current_order_malfunctions[ind])
+            if (correct_answer):
+                break
             for ind in range(len(self.current_order_malfunctions)):
                 if (path_exists[self.current_order_malfunctions[ind]] == True):
                     new_order.append(self.current_order_malfunctions[ind])
             self.current_order_malfunctions = copy.deepcopy(new_order)
+            if (wasted):
+                break
             
     def clean_temporary(self):
         self.search.temporary_reservations = dict()
+        self.search.lppath = []
+        for ind in range(self.env.get_num_agents()):
+            self.search.lppath.append([])
         for ind in range(len(self.current_order_malfunctions)):
             num = self.current_order_malfunctions[ind]
             self.control_agent.allAgents[num].actions = []
             self.control_agent.allAgents[num].current_pos = 0
             
-    def build_with_order_malfunctioning(self, order):
+    def build_with_order_malfunctioning(self, order, time_limit):
         self.clean_temporary()
-        self.control_agent.getAgents(env)
+        path_exists = self.search.startallAgents("malfunctions", self.env, self.control_agent, order, time_limit, self.current_step)
+        return path_exists
 
     def print_step(self):
         _action = {}
@@ -553,18 +641,31 @@ class submission:
             agent = self.control_agent.allAgents[ind]
             position = self.env.agents[ind].position
             if agent.current_pos < len(agent.actions):
+                self.prev_action[ind] = agent.actions[agent.current_pos]
                 if (agent.actions[agent.current_pos] != 4):
                     agent.spawned = True
                 _action[ind] = agent.actions[agent.current_pos]
                 self.control_agent.allAgents[ind].current_pos += 1
         self.current_step += 1
         return _action
-                     
+    
+    def reset_third(self):
+        new_order = []
+        for ind in range(len(self.current_order)):
+            number = self.current_order[ind]
+            if (self.env.agents[number].status == RailAgentStatus.READY_TO_DEPART):
+                new_order.append(number)
+        self.current_order = copy.deepcopy(new_order)
+        self.set_obligations()
+        self.build_with_order(self.current_order, 150, False)
+
 def my_controller(env, path_finder):
     if (path_finder.answer_build == False):
         path_finder.build()
-    if (path_finder.current_step == 1):
-        path_finder.search.make_safe_layer(path_finder.env)
+    if (path_finder.current_step == path_finder.maxStep // 10): # additional placement of non-malfunctioning agents (as the result of small time limits on the first step)
+        path_finder.reset_third()
+    if (path_finder.current_step >= path_finder.maxStep // 2 and path_finder.current_step % 10 == 0): # re-plan paths every 10 steps
+        path_finder.build_malfunctioning()
     return path_finder.print_step()
 
 #####################################################################
