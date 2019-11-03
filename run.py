@@ -594,12 +594,15 @@ class submission:
         self.control_agent.getAgents(self.env)
         for attempt in range(10):
             if ((self.current_step - 10) * 2 < self.maxStep): # malfunctioning agents enter the environment, we can afford not all of them, the maximumm planning time is 15 seconds
-                path_exists = self.build_with_order_malfunctioning(self.current_order_malfunctions, 15)
+                path_exists = self.build_with_order_malfunctioning(self.current_order_malfunctions, 8)
                 new_order = []
                 for ind in range(len(self.current_order_malfunctions)):
                     # right now, no support of slow malfunctioning agents
                     if (path_exists[self.current_order_malfunctions[ind]] == True and self.env.agents[self.current_order_malfunctions[ind]].speed_data['speed'] >= 0.49):
                         new_order.append(self.current_order_malfunctions[ind])
+                    else:
+                        self.control_agent.allAgents[self.current_order_malfunctions[ind]].actions = []
+                        self.control_agent.allAgents[self.current_order_malfunctions[ind]].current_pos = 0
                 self.current_order_malfunctions = copy.deepcopy(new_order)
             else:
                 path_exists = self.build_with_order_malfunctioning(self.current_order_malfunctions, INFINITY)
@@ -665,7 +668,7 @@ def my_controller(env, path_finder):
         path_finder.build()
     if (path_finder.current_step == path_finder.maxStep // 10): # additional placement of non-malfunctioning agents (as the result of small time limits on the first step)
         path_finder.reset_third()
-    if (path_finder.current_step >= path_finder.maxStep // 2 and path_finder.current_step % 10 == 0): # re-plan paths every 10 steps
+    if (path_finder.current_step >= (path_finder.maxStep * 5) // 8 and path_finder.current_step % 10 == 0): # re-plan paths every 10 steps
         path_finder.build_malfunctioning()
     return path_finder.print_step()
 
