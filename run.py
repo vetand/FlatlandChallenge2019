@@ -560,7 +560,7 @@ class submission:
         best_actions = self.control_agent
         self.set_obligations()
         for attempt in range(1): # we choose agents which had the longest delays and move them to the top of the queue (within one speed value)
-            path_exists = self.build_with_order(self.current_order, 350, (attempt == 0))
+            path_exists = self.build_with_order(self.current_order, 250, (attempt == 0))
             if (self.overall_reward() < best_solution):
                 best_solution = self.overall_reward()
                 best_actions = copy.deepcopy(self.control_agent)
@@ -611,7 +611,7 @@ class submission:
             wasted = False
             for ind in range(len(self.current_order_malfunctions)):
                 if (path_exists[self.current_order_malfunctions[ind]] == False):
-                    if (ind == 0 and attempt >= 3):
+                    if (ind == 0 and attempt >= 2):
                         wasted = True
                     correct_answer = False
                     new_order.append(self.current_order_malfunctions[ind])
