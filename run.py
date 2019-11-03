@@ -597,7 +597,8 @@ class submission:
                 path_exists = self.build_with_order_malfunctioning(self.current_order_malfunctions, 15)
                 new_order = []
                 for ind in range(len(self.current_order_malfunctions)):
-                    if (path_exists[self.current_order_malfunctions[ind]] == True):
+                    # right now, no support of slow malfunctioning agents
+                    if (path_exists[self.current_order_malfunctions[ind]] == True and self.env.agents[self.current_order_malfunctions[ind]].speed_data['speed'] >= 0.49):
                         new_order.append(self.current_order_malfunctions[ind])
                 self.current_order_malfunctions = copy.deepcopy(new_order)
             else:
