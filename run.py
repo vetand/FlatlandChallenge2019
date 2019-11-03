@@ -194,7 +194,7 @@ class ISearch:
             self.lppath.append([])
         self.reservations = dict() # reservated cells
         self.temporary_reservations = dict()
-        self.maxTime = 3500
+        self.maxTime = 5000
 
     def startallAgents(self, type, env, control_agent, order, time_limit, current_step): # preparations and performing A* 
                                                          # search for every single agent of given order
@@ -260,6 +260,9 @@ class ISearch:
         while (not pathFound) and len(openHeap) > 0:
 
             curNode = (heapq.heappop(openHeap)).priority
+            
+            if (curNode.t >= self.maxTime):
+                break
 
             if (curNode.i == finNode.i and curNode.j == finNode.j):
                 finNode = curNode
