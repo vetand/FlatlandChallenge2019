@@ -593,7 +593,7 @@ class submission:
         self.set_obligations()
         self.control_agent.getAgents(self.env)
         for attempt in range(10):
-            if (((self.current_step - 10) * 5) // 8 < self.maxStep): # malfunctioning agents enter the environment, we can afford not all of them, the maximumm planning time is 15 seconds
+            if (((self.current_step - 10) * 8) // 5 < self.maxStep): # malfunctioning agents enter the environment, we can afford not all of them, the maximumm planning time is 15 seconds
                 path_exists = self.build_with_order_malfunctioning(self.current_order_malfunctions, 8)
                 new_order = []
                 for ind in range(len(self.current_order_malfunctions)):
@@ -668,8 +668,8 @@ def my_controller(env, path_finder):
         path_finder.build()
     if (path_finder.current_step == path_finder.maxStep // 10): # additional placement of non-malfunctioning agents (as the result of small time limits on the first step)
         path_finder.reset_third()
-    #if (path_finder.current_step >= (path_finder.maxStep * 5) // 8 and path_finder.current_step % 10 == 0): # re-plan paths every 10 steps
-    #    path_finder.build_malfunctioning()
+    if (path_finder.current_step >= (path_finder.maxStep * 5) // 8 and path_finder.current_step % 10 == 0): # re-plan paths every 10 steps
+        path_finder.build_malfunctioning()
     return path_finder.print_step()
 
 #####################################################################
