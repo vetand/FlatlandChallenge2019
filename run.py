@@ -10,7 +10,7 @@ import numpy as np
 from queue import Queue
 EPS = 0.0001
 INFINITY = 1000000007
-SAFE_LAYER = 20
+SAFE_LAYER = 24
 
 #####################################################################
 # Instantiate a Remote Client
