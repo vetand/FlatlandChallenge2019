@@ -567,7 +567,7 @@ class submission:
                                  # there are two attempts which we calculate, then chose the best
                                  # on the turn number 4 we add more agents to the best solution
                                  # on the half of the step limit we add malfunctioning agents and hope that they won`t break path calculated here
-            path_exists = self.build_with_order(self.current_order, 125, (attempt == 0))
+            path_exists = self.build_with_order(self.current_order, 150, (attempt == 0))
             if (self.overall_reward() < best_solution):
                 best_solution = self.overall_reward()
                 best_actions = copy.deepcopy(self.control_agent)
