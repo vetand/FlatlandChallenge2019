@@ -10,7 +10,7 @@ import numpy as np
 from queue import Queue
 EPS = 0.0001
 INFINITY = 1000000007
-SAFE_LAYER = 24
+SAFE_LAYER = 20
 
 #####################################################################
 # Instantiate a Remote Client
@@ -672,7 +672,7 @@ def my_controller(env, path_finder):
         path_finder.build()
     if (path_finder.current_step == path_finder.maxStep // 10): # additional placement of non-malfunctioning agents (as the result of small time limits on the first step)
         path_finder.reset_third()
-    if (self.overall_time <= 1000 and path_finder.current_step >= (path_finder.maxStep * 5) // 8 and path_finder.current_step % 10 == 0): # re-plan paths every 10 steps
+    if (self.overall_time <= 800 and path_finder.current_step >= (path_finder.maxStep * 5) // 8 and path_finder.current_step % 10 == 0): # re-plan paths every 10 steps
         path_finder.build_malfunctioning()
     return path_finder.print_step()
 
