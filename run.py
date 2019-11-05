@@ -469,6 +469,7 @@ def build_start_order(env, type): # custom desine of start agents order, there i
         if (type == "for_malfunctions"):
             if (env.agents[ind].malfunction_data["malfunction_rate"] != 0):
                 queue[getStepsToExitCell(env.agents[ind].speed_data['speed'])].append([potential, ind])
+    queue[1], queue[2], queue[3], queue[4] = queue[4], queue[3], queue[2], queue[1]
     for speed_value in range(10):
         queue[speed_value].sort()
     for speed_value in range(1, 10):
@@ -549,9 +550,6 @@ class submission:
         if (self.env.agents[number].malfunction_data["malfunction_rate"] == 0 or self.env.agents[number].status == RailAgentStatus.DONE_REMOVED):
             self.control_agent.allAgents[number].next_malfunction = INFINITY
             return
-        if (self.env.agents[number].malfunction_data["malfunction"] != 0):
-            self.control_agent.allAgents[number].next_malfunction = 0
-            return
         self.control_agent.allAgents[number].next_malfunction = self.env.agents[number].malfunction_data["next_malfunction"]
             
     def set_obligations(self):
@@ -563,11 +561,8 @@ class submission:
         best_solution = INFINITY
         best_actions = self.control_agent
         self.set_obligations()
-        for attempt in range(2): # we choose agents which had the longest delays and move them to the top of the queue (within one speed value)
-                                 # there are two attempts which we calculate, then chose the best
-                                 # on the turn number 4 we add more agents to the best solution
-                                 # on the half of the step limit we add malfunctioning agents and hope that they won`t break path calculated here
-            path_exists = self.build_with_order(self.current_order, 150, (attempt == 0))
+        for attempt in range(1): # we choose agents which had the longest delays and move them to the top of the queue (within one speed value)
+            path_exists = self.build_with_order(self.current_order, 250, (attempt == 0))
             if (self.overall_reward() < best_solution):
                 best_solution = self.overall_reward()
                 best_actions = copy.deepcopy(self.control_agent)
@@ -604,12 +599,8 @@ class submission:
                 path_exists = self.build_with_order_malfunctioning(self.current_order_malfunctions, 8)
                 new_order = []
                 for ind in range(len(self.current_order_malfunctions)):
-                    # right now, no support of slow malfunctioning agents
-                    if (path_exists[self.current_order_malfunctions[ind]] == True and self.env.agents[self.current_order_malfunctions[ind]].speed_data['speed'] >= 0.49):
-                        new_order.append(self.current_order_malfunctions[ind])
-                    else:
-                        self.control_agent.allAgents[self.current_order_malfunctions[ind]].actions = []
-                        self.control_agent.allAgents[self.current_order_malfunctions[ind]].current_pos = 0
+                    self.control_agent.allAgents[self.current_order_malfunctions[ind]].actions = []
+                    self.control_agent.allAgents[self.current_order_malfunctions[ind]].current_pos = 0
                 self.current_order_malfunctions = copy.deepcopy(new_order)
             else:
                 path_exists = self.build_with_order_malfunctioning(self.current_order_malfunctions, INFINITY)
