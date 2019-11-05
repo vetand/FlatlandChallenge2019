@@ -599,8 +599,8 @@ class submission:
                 path_exists = self.build_with_order_malfunctioning(self.current_order_malfunctions, 8)
                 new_order = []
                 for ind in range(len(self.current_order_malfunctions)):
-                    self.control_agent.allAgents[self.current_order_malfunctions[ind]].actions = []
-                    self.control_agent.allAgents[self.current_order_malfunctions[ind]].current_pos = 0
+                    if (path_exists[self.current_order_malfunctions[ind]] == True):
+                        new_order.append(self.current_order_malfunctions[ind])
                 self.current_order_malfunctions = copy.deepcopy(new_order)
             else:
                 path_exists = self.build_with_order_malfunctioning(self.current_order_malfunctions, INFINITY)
