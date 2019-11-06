@@ -241,8 +241,6 @@ class ISearch:
         # start of A* algorithm
         startNode = agent.obligations
         finNode = Node(agent.fin_i, agent.fin_j, agent.dir)
-        if (startNode.spawned):
-            startNode.in_simulation = 0
             
         if (agent.spawned and not self.correct_point(startNode, agent)):
             return False
@@ -375,13 +373,14 @@ class ISearch:
             scNode.g = curNode.g + 1
             scNode.h = heuristic.get_heuristic(agent.agentId, scNode.i, scNode.j, scNode.dir)
             scNode.f = scNode.g + scNode.h
-            scNode.in_simulation = curNode.in_simulation + agent.stepsToExitCell
             scNode.spawned = True
 
             if scNode.i == curNode.i and scNode.j == curNode.j:
                 scNode.t = curNode.t + 1
+                scNode.in_simulation = curNode.in_simulation + 1
             else:
                 scNode.t = curNode.t + agent.stepsToExitCell
+                scNode.in_simulation = curNode.in_simulation + agent.stepsToExitCell
 
             if not self.correct_point(scNode, agent):
                 continue
@@ -526,6 +525,10 @@ class submission:
         self.control_agent.allAgents[number].obligations.spawned = agent.spawned
         self.control_agent.allAgents[number].obligations.f = self.control_agent.allAgents[number].obligations.h
         if (self.env.agents[number].speed_data['position_fraction'] == 0.0):
+            if (agent.spawned):
+                self.control_agent.allAgents[number].obligations.in_simulation = 0
+            else:
+                self.control_agent.allAgents[number].obligations.in_simulation = -1
             self.control_agent.allAgents[number].obligations.t = self.current_step + max(self.env.agents[number].malfunction_data['malfunction'] - 1,  0) * int(agent.spawned)
         else:
             current_direction = self.env.agents[number].direction
@@ -544,6 +547,7 @@ class submission:
             else:
                 self.control_agent.allAgents[number].obligations.j -= 1
             remain = max(self.env.agents[number].malfunction_data['malfunction'] - 1,  0) * int(agent.spawned) + int((1 - self.env.agents[number].speed_data['position_fraction'] + EPS) / self.env.agents[number].speed_data['speed'])
+            self.control_agent.allAgents[number].obligations.in_simulation = int((1 - self.env.agents[number].speed_data['position_fraction'] + EPS) / self.env.agents[number].speed_data['speed'])
             self.control_agent.allAgents[number].obligations.t = self.current_step + remain
             
     def count_next_malfunction(self, number):
@@ -596,7 +600,7 @@ class submission:
         self.control_agent.getAgents(self.env)
         for attempt in range(10):
             if ((self.current_step - 10) * 2 < self.maxStep): # malfunctioning agents enter the environment, we can afford not all of them, the maximumm planning time is 15 seconds
-                path_exists = self.build_with_order_malfunctioning(self.current_order_malfunctions, 8)
+                path_exists = self.build_with_order_malfunctioning(self.current_order_malfunctions, 15)
                 new_order = []
                 for ind in range(len(self.current_order_malfunctions)):
                     if (path_exists[self.current_order_malfunctions[ind]] == True):
@@ -643,8 +647,8 @@ class submission:
             agent = self.control_agent.allAgents[ind]
             position = self.env.agents[ind].position
             if agent.current_pos < len(agent.actions):
-                self.prev_action[ind] = agent.actions[agent.current_pos]
                 if (agent.actions[agent.current_pos] != 4):
+                    self.prev_action[ind] = agent.actions[agent.current_pos]
                     agent.spawned = True
                 _action[ind] = agent.actions[agent.current_pos]
                 self.control_agent.allAgents[ind].current_pos += 1
