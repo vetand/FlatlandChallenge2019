@@ -514,7 +514,7 @@ class submission:
         for attempt in range(10):
             self.set_obligations()
             if (self.current_step == 0):
-                path_exists = self.build_with_order(self.current_order, 20)
+                path_exists = self.build_with_order(self.current_order, 60)
             else:
                 path_exists = self.build_with_order(self.current_order, INFINITY)
             new_order = []
