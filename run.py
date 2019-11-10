@@ -10,7 +10,9 @@ import numpy as np
 from queue import Queue
 EPS = 0.0001
 INFINITY = 1000000007
-SAFE_LAYER = 4
+SAFE_LAYER = 5
+START_TIME_LIMIT = 50
+REPLAN_LIMIT = 100
 
 #####################################################################
 # Instantiate a Remote Client
@@ -56,7 +58,7 @@ class Agent: # agent general and instant information
         self.stepsToExitCell = getStepsToExitCell(env.agents[self.agentId].speed_data["speed"]) # number of steps required to
                                                                                  # move to next cell
 
-class Agents: # agent`s rapport between themselves
+class Agents:
     def __init__(self):
         self.allAgents = [] # array of agents
         self.size = 0
@@ -70,6 +72,12 @@ class Agents: # agent`s rapport between themselves
         else:
             for ind in range(self.size):
                 self.allAgents[ind].getAgent(env)
+                
+    def reset_agent(self, number, new_i, new_j):
+        self.allAgents[number].actions = []
+        self.allAgents[number].current_pos = 0
+        self.allAgents[number].start_i = new_i
+        self.allAgents[number].start_j = new_j
 
 class Node: # low-level code: Node class of a search process (no changes)
     def __init__(self, i, j, dir):
@@ -137,7 +145,7 @@ class Node_h: # low-level code: Node class for advanced heuristic finder
         self.dir = dir
         self.time = time
         
-class global_H: # advanced heuristic - shortest path from this cell to finish with no other agents
+class Global_H: # advanced heuristic - shortest path from this cell to finish with no other agents
     def __init__(self, env):
         self.database = dict()
         self.env = env
@@ -193,35 +201,21 @@ class ISearch:
             self.lppath.append([])
         self.reservations = dict() # reservated cells
         self.maxTime = 5000
+        self.additional_reserve = 5
 
-    def startallAgents(self, env, control_agent, order, time_limit, current_step): # preparations and performing A* 
-                                                         # search for every single agent of given order
-    
+    def startallAgents(self, env, control_agent, order, time_limit, current_step): # preparations and performing A* on the first turn
+
         # path exists is a feedback for high-level class
         path_exists = []
         for i in range(env.get_num_agents()):
             path_exists.append(False)       
-            
-        for ind in range(len(order)):
-            agent = control_agent.allAgents[order[ind]]
-            for step in range(current_step, agent.obligations.t):
-                self.reservations[(step, agent.start_i, agent.start_j)] = agent.agentId
-                agent.actions.append(4)
-            if (env.agents[order[ind]].position == None):
-                continue
-            for step in range(agent.stepsToExitCell + SAFE_LAYER):
-                self.reservations[(step + agent.obligations.t, agent.obligations.i, agent.obligations.j)] = agent.agentId
-
 
         start_time = time.time()
         for i in range(len(order)): # execute A* with every single agent with 
             agent = control_agent.allAgents[order[i]]
-            if (agent.spawned == True and env.agents[agent.agentId].position == None):
-                path_exists[agent.agentId] = True
-            else:
-                path_exists[agent.agentId] = self.startSearch(agent, env, current_step)
-                if (int(time.time()) - start_time > time_limit):
-                    break
+            path_exists[agent.agentId] = self.startSearch(agent, env, current_step)
+            if (int(time.time()) - start_time > time_limit):
+                break
         return path_exists
 
     def checkReservation(self, i, j, t): # low-level code: reservations info
@@ -238,9 +232,6 @@ class ISearch:
         # start of A* algorithm
         startNode = agent.obligations
         finNode = Node(agent.fin_i, agent.fin_j, agent.dir)
-            
-        if (agent.spawned and not self.correct_point(startNode, agent)):
-            return False
     
         openHeap = []
         openCopy = dict()
@@ -316,8 +307,8 @@ class ISearch:
             return False
         
     def correct_point(self, scNode, agent):
-        for step in range(agent.stepsToExitCell):
-            if self.checkReservation(scNode.i, scNode.j, scNode.t + step) and self.get_occupator(scNode.i, scNode.j, scNode.t + step) != agent.agentId:
+        for step in range(-SAFE_LAYER, agent.stepsToExitCell):
+            if self.checkReservation(scNode.i, scNode.j, max(scNode.t + step, 0)) and self.get_occupator(scNode.i, scNode.j, max(scNode.t + step, 0)) != agent.agentId:
                 return False
         if (self.checkReservation(scNode.i, scNode.j, scNode.t + agent.stepsToExitCell)):
             current_number = agent.agentId
@@ -387,6 +378,55 @@ class ISearch:
             if (not edge_conflict):
                 successors.append(scNode)
         return successors
+    
+    def delete_path(self, number):
+        keys_to_delete = []
+        for key in self.reservations:
+            if self.reservations[key] == number:
+                keys_to_delete.append(key)
+        for key in keys_to_delete:
+            del self.reservations[key]
+        self.lppath[number] = []
+        
+    def replan_agent(self, agent, env, current_step, calculated):
+        self.delete_path(agent.agentId)
+        if (agent.spawned == False):
+            for step in range(current_step, agent.obligations.t):
+                agent.actions.append(4)
+            path_exists = self.startSearch(agent, env, current_step)
+            return []
+        passers_by = []
+        for step in range(current_step, agent.obligations.t):
+            if self.checkReservation(agent.start_i, agent.start_j, step) and self.get_occupator(agent.start_i, agent.start_j, step) != agent.agentId:
+                passers_by.append(self.get_occupator(agent.start_i, agent.start_j, step))
+                self.delete_path(passers_by[-1])
+            self.reservations[(step, agent.start_i, agent.start_j)] = agent.agentId
+            agent.actions.append(4)
+            
+        for step in range(agent.obligations.t, agent.obligations.t + self.additional_reserve * getStepsToExitCell(env.agents[agent.agentId].speed_data['speed']) * calculated):
+            if self.checkReservation(agent.start_i, agent.start_j, step) and self.get_occupator(agent.start_i, agent.start_j, step) != agent.agentId:
+                passers_by.append(self.get_occupator(agent.start_i, agent.start_j, step))
+                self.delete_path(passers_by[-1])
+
+        for step in range(agent.stepsToExitCell):
+            if self.checkReservation(agent.obligations.i, agent.obligations.j, step + agent.obligations.t) and self.get_occupator(agent.obligations.i, agent.obligations.j, step + agent.obligations.t) != agent.agentId:
+                passers_by.append(self.get_occupator(agent.obligations.i, agent.obligations.j, step + agent.obligations.t))
+                self.delete_path(passers_by[-1])
+
+        path_exists = self.startSearch(agent, env, current_step)
+        while path_exists == False:
+            agent_dead = False
+            for step in range(agent.obligations.t + agent.stepsToExitCell, self.maxTime):
+                if self.checkReservation(agent.obligations.i, agent.obligations.j, step) and self.get_occupator(agent.obligations.i, agent.obligations.j, step) != agent.agentId:
+                    passers_by.append(self.get_occupator(agent.obligations.i, agent.obligations.j, step))
+                    self.delete_path(passers_by[-1])
+                    break
+                if step == self.maxTime - 1:
+                    agent_dead = True
+            if (agent_dead):
+                break
+            path_exists = self.startSearch(agent, env, current_step)
+        return passers_by
 
     def makePrimaryPath(self, curNode, startNode, agent): # path of nodes
 
@@ -394,11 +434,10 @@ class ISearch:
         while curNode != startNode:
             self.lppath[agent.agentId].append(curNode)
             if not wait_action:
-                for step in range(agent.stepsToExitCell + SAFE_LAYER):
+                for step in range(agent.stepsToExitCell):
                     self.reservations[(curNode.t + step, curNode.i, curNode.j)] = agent.agentId
             elif curNode.spawned == True:
-                for step in range(1 + SAFE_LAYER):
-                    self.reservations[(curNode.t + step, curNode.i, curNode.j)] = agent.agentId
+                self.reservations[(curNode.t, curNode.i, curNode.j)] = agent.agentId
             if curNode.i == curNode.parent.i and curNode.j == curNode.parent.j:
                 wait_action = True
             else:
@@ -407,11 +446,10 @@ class ISearch:
 
         self.lppath[agent.agentId].append(curNode)
         if not wait_action:
-            for step in range(agent.stepsToExitCell + SAFE_LAYER):
+            for step in range(agent.stepsToExitCell):
                 self.reservations[(curNode.t + step, curNode.i, curNode.j)] = agent.agentId
         elif curNode.spawned == True:
-            for step in range(1 + SAFE_LAYER):
-                self.reservations[(curNode.t + step, curNode.i, curNode.j)] = agent.agentId
+            self.reservations[(curNode.t, curNode.i, curNode.j)] = agent.agentId
 
         self.lppath[agent.agentId] = self.lppath[agent.agentId][::-1]
 
@@ -432,43 +470,39 @@ class ISearch:
                 for step in range(agent.stepsToExitCell):
                     agent.actions.append(1)
                     
-def build_start_order(env, type): # custom desine of start agents order, there is only one worthwhile variant
+def build_start_order(env): # custom desine of start agents order, there is only one worthwhile variant
             
     answer = []
     queue = []
-    for speed_value in range(10):
+    for speed_value in range(5):
         queue.append([])
     for ind in range(len(env.agents)):
         x1, y1 = env.agents[ind].initial_position
         x2, y2 = env.agents[ind].target
         potential = heuristic.get_heuristic(ind, x1, y1, env.agents[ind].direction)
-        if (type == "speed_also"):
-            if (env.agents[ind].malfunction_data["malfunction_rate"] != 0):
-                queue[0].append([potential, ind])
-            else:
-                queue[getStepsToExitCell(env.agents[ind].speed_data['speed'])].append([potential, ind])
-    for speed_value in range(10):
+        queue[getStepsToExitCell(env.agents[ind].speed_data['speed'])].append([potential, ind])
+    for speed_value in range(1, 5):
         queue[speed_value].sort()
-    for speed_value in range(1, 10):
+    for speed_value in range(1, 5):
         for ind in range(len(queue[speed_value])):
             answer.append(queue[speed_value][ind][1])
 
     return answer
 
 
-class submission:
+class Solver:
     def __init__(self, env): # initialization of a new simulation
         self.env = env
         self.control_agent = Agents()
         self.control_agent.getAgents(env)
         self.answer_build = False
         self.search = ISearch(env)
-        self.current_order = build_start_order(env, "speed_also")
         self.current_step = 0
         self.maxStep = 8 * (env.width + env.height + 20)
         self.prev_action = [2] * self.env.get_num_agents()
+        self.current_order = build_start_order(self.env)
         self.overall_time = 0
-        self.start_penalty = [0] * self.env.get_num_agents()
+        self.calculated = [0] * self.env.get_num_agents()
     
     def make_obligation(self, number): # in fact this is a start Node (which the agent is obligated to reach before it starts to make any decisions)
         if (self.env.agents[number].position != None):
@@ -482,7 +516,7 @@ class submission:
         self.control_agent.allAgents[number].obligations.spawned = agent.spawned
         self.control_agent.allAgents[number].obligations.f = self.control_agent.allAgents[number].obligations.h
         if (self.env.agents[number].speed_data['position_fraction'] == 0.0):
-            self.control_agent.allAgents[number].obligations.t = self.current_step + self.env.agents[number].malfunction_data['malfunction'] * int(agent.spawned) + self.start_penalty[number]
+            self.control_agent.allAgents[number].obligations.t = self.current_step + self.env.agents[number].malfunction_data['malfunction']
         else:
             current_direction = self.env.agents[number].direction
             if (self.prev_action[number] == 1):
@@ -499,8 +533,8 @@ class submission:
                 self.control_agent.allAgents[number].obligations.i += 1
             else:
                 self.control_agent.allAgents[number].obligations.j -= 1
-            remain = self.env.agents[number].malfunction_data['malfunction'] * int(agent.spawned) + int((1 - self.env.agents[number].speed_data['position_fraction'] + EPS) / self.env.agents[number].speed_data['speed'])
-            self.control_agent.allAgents[number].obligations.t = self.current_step + remain + self.start_penalty[number]
+            remain = self.env.agents[number].malfunction_data['malfunction'] + int((1 - self.env.agents[number].speed_data['position_fraction'] + EPS) / self.env.agents[number].speed_data['speed'])
+            self.control_agent.allAgents[number].obligations.t = self.current_step + remain
             
     def set_obligations(self):
         for ind in range(self.env.get_num_agents()):
@@ -510,51 +544,15 @@ class submission:
             else:
                 self.control_agent.allAgents[ind].start_i, self.control_agent.allAgents[ind].start_j = self.env.agents[ind].initial_position
         
-    def build(self): # if we need to build a new paths
-        for attempt in range(10):
-            self.set_obligations()
-            if (self.current_step == 0):
-                path_exists = self.build_with_order(self.current_order, 60)
-            else:
-                path_exists = self.build_with_order(self.current_order, INFINITY)
-            new_order = []
-            correct_answer = True
-            wasted = False
-            for ind in range(len(self.current_order)):
-                if (path_exists[self.current_order[ind]] == False):
-                    if (ind == 0 and attempt >= 2):
-                        wasted = True
-                    correct_answer = False
-                    new_order.append(self.current_order[ind])
-                    self.start_penalty[self.current_order[ind]] += SAFE_LAYER * attempt
-                else:
-                    self.start_penalty[self.current_order[ind]] = 0
-            if (correct_answer):
-                break
-            elif (self.current_step == 0):
-                new_order = []
-                for ind in range(len(self.current_order)):
-                    if (path_exists[self.current_order[ind]] == True):
-                        new_order.append(self.current_order[ind])
-                self.current_order = copy.deepcopy(new_order)
-                break
-
-            for ind in range(len(self.current_order)):
-                if (path_exists[self.current_order[ind]] == True):
-                    new_order.append(self.current_order[ind])
-            self.current_order = copy.deepcopy(new_order)
-            if (wasted):
-                break
-        self.answer_build = True
-
-        
-    def build_with_order(self, order, time_limit): # try to build a paths with this agents order
+    def build_on_the_start(self):
+        self.set_obligations()
+        path_exists = self.search.startallAgents(self.env, self.control_agent, self.current_order, START_TIME_LIMIT, self.current_step)
+        new_order = []
         for ind in range(len(self.current_order)):
-            self.control_agent.allAgents[self.current_order[ind]].actions = []
-            self.control_agent.allAgents[self.current_order[ind]].current_pos = 0
-        self.search = ISearch(self.env)
-        path_exists = self.search.startallAgents(self.env, self.control_agent, order, time_limit, self.current_step)
-        return path_exists
+            if (path_exists[self.current_order[ind]] == True):
+                new_order.append(self.current_order[ind])
+        self.current_order = copy.deepcopy(new_order)
+        self.answer_build = True
 
     def print_step(self):
         _action = {}
@@ -571,17 +569,37 @@ class submission:
         return _action
     
     def update_malfunctions(self):
+        self.calculated = [0] * self.env.get_num_agents()
         for ind in range(self.env.get_num_agents()):
             if (self.env.agents[ind].malfunction_data['malfunction'] > 1 and self.control_agent.allAgents[ind].malfunctioning == False):
-                self.build()
-                break
+                replanning_queue = []
+                replanning_queue.append(ind)
+                start_replanning_time = time.time()
+                pos = 0
+                while pos < len(replanning_queue):
+                    if time.time() - start_replanning_time >= REPLAN_LIMIT:
+                        break
+                    current = replanning_queue[pos]
+                    if (self.env.agents[current].position == None):
+                        if self.control_agent.allAgents[current].spawned == True:
+                            pos += 1
+                            continue
+                        self.control_agent.reset_agent(current, self.env.agents[current].initial_position[0], self.env.agents[current].initial_position[1])
+                    else:
+                        self.control_agent.reset_agent(current, self.env.agents[current].position[0], self.env.agents[current].position[1])
+                    self.make_obligation(current)
+                    additional = self.search.replan_agent(self.control_agent.allAgents[current], self.env, self.current_step, self.calculated[current])
+                    self.calculated[current] += 1
+                    for i in range(len(additional)):
+                        replanning_queue.append(additional[i])
+                    pos += 1
         for ind in range(self.env.get_num_agents()):
             self.control_agent.allAgents[ind].malfunctioning = (self.env.agents[ind].malfunction_data['malfunction'] > 1)
 
 def my_controller(env, path_finder):
     if (path_finder.answer_build == False):
-        path_finder.build()
-    elif path_finder.overall_time <= 900:
+        path_finder.build_on_the_start()
+    elif path_finder.overall_time <= 600:
         path_finder.update_malfunctions()
     return path_finder.print_step()
 
@@ -653,8 +671,8 @@ while True:
     local_env = remote_client.env
     number_of_agents = len(local_env.agents)
 
-    heuristic = global_H(local_env)
-    path_finder = submission(local_env)
+    heuristic = Global_H(local_env)
+    path_finder = Solver(local_env)
 
     # Now we enter into another infinite loop where we 
     # compute the actions for all the individual steps in this episode
