@@ -525,13 +525,13 @@ class Solver:
                 current_direction += 1
             current_direction %= 4
             self.control_agent.allAgents[number].obligations.dir = current_direction
-            if (current_direction == 0):
+            if (current_direction == 0 and self.control_agent.allAgents[number].obligations.i > 0):
                 self.control_agent.allAgents[number].obligations.i -= 1
-            elif (current_direction == 1):
+            elif (current_direction == 1 and self.control_agent.allAgents[number].obligations.j < self.env.width - 1):
                 self.control_agent.allAgents[number].obligations.j += 1
-            elif (current_direction == 2):
+            elif (current_direction == 2 and self.control_agent.allAgents[number].obligations.i < self.env.height - 1):
                 self.control_agent.allAgents[number].obligations.i += 1
-            else:
+            elif (current_direction == 3 and self.control_agent.allAgents[number].obligations.j > 0):
                 self.control_agent.allAgents[number].obligations.j -= 1
             remain = self.env.agents[number].malfunction_data['malfunction'] + int((1 - self.env.agents[number].speed_data['position_fraction'] + EPS) / self.env.agents[number].speed_data['speed'])
             self.control_agent.allAgents[number].obligations.t = self.current_step + remain
