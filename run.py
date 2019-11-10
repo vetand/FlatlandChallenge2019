@@ -201,7 +201,7 @@ class ISearch:
             self.lppath.append([])
         self.reservations = dict() # reservated cells
         self.maxTime = 5000
-        self.additional_reserve = 70
+        self.additional_reserve = 75
 
     def startallAgents(self, env, control_agent, order, time_limit, current_step): # preparations and performing A* on the first turn
 
@@ -535,6 +535,8 @@ class Solver:
             elif (current_direction == 3 and self.control_agent.allAgents[number].obligations.j > 0):
                 self.control_agent.allAgents[number].obligations.j -= 1
             remain = self.env.agents[number].malfunction_data['malfunction'] + int((1 - self.env.agents[number].speed_data['position_fraction'] + EPS) / self.env.agents[number].speed_data['speed'])
+            if (self.env.agents[number].malfunction_data['malfunction'] > 0):
+                remain += 1
             self.control_agent.allAgents[number].obligations.t = self.current_step + remain
             
     def set_obligations(self):
