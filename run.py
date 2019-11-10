@@ -201,7 +201,7 @@ class ISearch:
             self.lppath.append([])
         self.reservations = dict() # reservated cells
         self.maxTime = 5000
-        self.additional_reserve = 5
+        self.additional_reserve = 70
 
     def startallAgents(self, env, control_agent, order, time_limit, current_step): # preparations and performing A* on the first turn
 
@@ -403,10 +403,11 @@ class ISearch:
             self.reservations[(step, agent.start_i, agent.start_j)] = agent.agentId
             agent.actions.append(4)
             
-        for step in range(agent.obligations.t, agent.obligations.t + self.additional_reserve * calculated):
-            if self.checkReservation(agent.start_i, agent.start_j, step) and self.get_occupator(agent.start_i, agent.start_j, step) != agent.agentId:
-                passers_by.append(self.get_occupator(agent.start_i, agent.start_j, step))
-                self.delete_path(passers_by[-1])
+        if (calculated >= 2):
+            for step in range(agent.obligations.t, agent.obligations.t + self.additional_reserve * (calculated - 1)):
+                if self.checkReservation(agent.start_i, agent.start_j, step) and self.get_occupator(agent.start_i, agent.start_j, step) != agent.agentId:
+                    passers_by.append(self.get_occupator(agent.start_i, agent.start_j, step))
+                    self.delete_path(passers_by[-1])
 
         for step in range(agent.stepsToExitCell):
             if self.checkReservation(agent.obligations.i, agent.obligations.j, step + agent.obligations.t) and self.get_occupator(agent.obligations.i, agent.obligations.j, step + agent.obligations.t) != agent.agentId:
@@ -590,6 +591,9 @@ class Solver:
                     self.make_obligation(current)
                     additional = self.search.replan_agent(self.control_agent.allAgents[current], self.env, self.current_step, self.calculated[current])
                     self.calculated[current] += 1
+                    if (self.calculated[current] >= 3):
+                        for ind in range(self.env.get_num_agents()):
+                            self.calculated[current] = max(self.calculated[current] - 1, 0)
                     for i in range(len(additional)):
                         replanning_queue.append(additional[i])
                     pos += 1
