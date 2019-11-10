@@ -11,7 +11,7 @@ from queue import Queue
 EPS = 0.0001
 INFINITY = 1000000007
 SAFE_LAYER = 5
-START_TIME_LIMIT = 50
+START_TIME_LIMIT = 20
 REPLAN_LIMIT = 100
 
 #####################################################################
@@ -403,7 +403,7 @@ class ISearch:
             self.reservations[(step, agent.start_i, agent.start_j)] = agent.agentId
             agent.actions.append(4)
             
-        for step in range(agent.obligations.t, agent.obligations.t + self.additional_reserve * getStepsToExitCell(env.agents[agent.agentId].speed_data['speed']) * calculated):
+        for step in range(agent.obligations.t, agent.obligations.t + self.additional_reserve * calculated):
             if self.checkReservation(agent.start_i, agent.start_j, step) and self.get_occupator(agent.start_i, agent.start_j, step) != agent.agentId:
                 passers_by.append(self.get_occupator(agent.start_i, agent.start_j, step))
                 self.delete_path(passers_by[-1])
