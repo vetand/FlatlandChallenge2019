@@ -11,8 +11,8 @@ from queue import Queue
 EPS = 0.0001
 INFINITY = 1000000007
 SAFE_LAYER = 4
-START_TIME_LIMIT = 20
-REPLAN_LIMIT = 150
+START_TIME_LIMIT = 80
+REPLAN_LIMIT = 180
 
 #####################################################################
 # Instantiate a Remote Client
@@ -604,7 +604,7 @@ class Solver:
 def my_controller(env, path_finder):
     if (path_finder.answer_build == False):
         path_finder.build_on_the_start()
-    elif path_finder.overall_time <= 800:
+    elif path_finder.overall_time <= 900:
         path_finder.update_malfunctions()
     return path_finder.print_step()
 
