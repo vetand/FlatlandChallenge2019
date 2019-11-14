@@ -1,7 +1,7 @@
 from flatland.evaluators.client import FlatlandRemoteClient
 from flatland.core.env_observation_builder import DummyObservationBuilder
 from my_observation_builder import CustomObservationBuilder
-from flatland.envs.agent_utils import EnvAgent, RailAgentStatus
+from flatland.envs.agent_utils importEnvAgent, RailAgentStatus
 import numpy as np
 import time
 import heapq
@@ -10,10 +10,9 @@ import numpy as np
 from queue import Queue
 EPS = 0.0001
 INFINITY = 1000000007
-SAFE_LAYER = 4
-START_TIME_LIMIT = 75
-REPLAN_LIMIT = 180
-ONE_LIMIT = 25
+SAFE_LAYER = 5
+START_TIME_LIMIT = 20
+REPLAN_LIMIT = 100
 
 #####################################################################
 # Instantiate a Remote Client
