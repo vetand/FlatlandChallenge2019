@@ -13,6 +13,7 @@ INFINITY = 1000000007
 SAFE_LAYER = 4
 START_TIME_LIMIT = 80
 REPLAN_LIMIT = 180
+ONE_LIMIT = 25
 
 #####################################################################
 # Instantiate a Remote Client
@@ -200,7 +201,7 @@ class ISearch:
         for ind in range(env.get_num_agents()):
             self.lppath.append([])
         self.reservations = dict() # reservated cells
-        self.maxTime = 5000
+        self.maxTime = 3500
         self.additional_reserve = 20
 
     def startallAgents(self, env, control_agent, order, time_limit, current_step): # preparations and performing A* on the first turn
@@ -232,6 +233,7 @@ class ISearch:
         # start of A* algorithm
         startNode = agent.obligations
         finNode = Node(agent.fin_i, agent.fin_j, agent.dir)
+        start_time = time.time()
     
         openHeap = []
         openCopy = dict()
@@ -247,7 +249,7 @@ class ISearch:
 
             curNode = (heapq.heappop(openHeap)).priority
             
-            if (curNode.t >= self.maxTime):
+            if (time.time() - start_time >= ONE_LIMIT or curNode.t >= self.maxTime):
                 break
 
             if (curNode.i == finNode.i and curNode.j == finNode.j):
