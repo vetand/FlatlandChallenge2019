@@ -1,7 +1,7 @@
 from flatland.evaluators.client import FlatlandRemoteClient
 from flatland.core.env_observation_builder import DummyObservationBuilder
 from my_observation_builder import CustomObservationBuilder
-from flatland.envs.agent_utils import EnvAgentStatic, EnvAgent, RailAgentStatus
+from flatland.envs.agent_utils import EnvAgent, RailAgentStatus
 import numpy as np
 import time
 import heapq
@@ -11,7 +11,7 @@ from queue import Queue
 EPS = 0.0001
 INFINITY = 1000000007
 SAFE_LAYER = 4
-START_TIME_LIMIT = 80
+START_TIME_LIMIT = 75
 REPLAN_LIMIT = 180
 ONE_LIMIT = 25
 
@@ -487,7 +487,7 @@ def build_start_order(env): # custom desine of start agents order, there is only
         x2, y2 = env.agents[ind].target
         potential = heuristic.get_heuristic(ind, x1, y1, env.agents[ind].direction)
         queue[getStepsToExitCell(env.agents[ind].speed_data['speed'])].append([potential, ind])
-    #queue[1], queue[2], queue[3], queue[4] = queue[4], queue[3], queue[2], queue[1]
+    queue[1], queue[2], queue[3], queue[4] = queue[4], queue[3], queue[2], queue[1]
     for speed_value in range(1, 5):
         queue[speed_value].sort()
     for speed_value in range(1, 5):
