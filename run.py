@@ -1,7 +1,7 @@
 from flatland.evaluators.client import FlatlandRemoteClient
 from flatland.core.env_observation_builder import DummyObservationBuilder
 from my_observation_builder import CustomObservationBuilder
-from flatland.envs.agent_utils import EnvAgent, RailAgentStatus
+from flatland.envs.agent_utils import EnvAgentStatic, EnvAgent, RailAgentStatus
 import numpy as np
 import time
 import heapq
@@ -10,9 +10,9 @@ import numpy as np
 from queue import Queue
 EPS = 0.0001
 INFINITY = 1000000007
-SAFE_LAYER = 5
-START_TIME_LIMIT = 20
-REPLAN_LIMIT = 100
+SAFE_LAYER = 4
+START_TIME_LIMIT = 12
+REPLAN_LIMIT = 150
 
 #####################################################################
 # Instantiate a Remote Client
@@ -200,7 +200,7 @@ class ISearch:
         for ind in range(env.get_num_agents()):
             self.lppath.append([])
         self.reservations = dict() # reservated cells
-        self.maxTime = 3500
+        self.maxTime = 5000
         self.additional_reserve = 20
 
     def startallAgents(self, env, control_agent, order, time_limit, current_step): # preparations and performing A* on the first turn
@@ -232,7 +232,6 @@ class ISearch:
         # start of A* algorithm
         startNode = agent.obligations
         finNode = Node(agent.fin_i, agent.fin_j, agent.dir)
-        start_time = time.time()
     
         openHeap = []
         openCopy = dict()
@@ -248,7 +247,7 @@ class ISearch:
 
             curNode = (heapq.heappop(openHeap)).priority
             
-            if (time.time() - start_time >= ONE_LIMIT or curNode.t >= self.maxTime):
+            if (curNode.t >= self.maxTime):
                 break
 
             if (curNode.i == finNode.i and curNode.j == finNode.j):
@@ -486,7 +485,7 @@ def build_start_order(env): # custom desine of start agents order, there is only
         x2, y2 = env.agents[ind].target
         potential = heuristic.get_heuristic(ind, x1, y1, env.agents[ind].direction)
         queue[getStepsToExitCell(env.agents[ind].speed_data['speed'])].append([potential, ind])
-    queue[1], queue[2], queue[3], queue[4] = queue[4], queue[3], queue[2], queue[1]
+    #queue[1], queue[2], queue[3], queue[4] = queue[4], queue[3], queue[2], queue[1]
     for speed_value in range(1, 5):
         queue[speed_value].sort()
     for speed_value in range(1, 5):
@@ -605,7 +604,7 @@ class Solver:
 def my_controller(env, path_finder):
     if (path_finder.answer_build == False):
         path_finder.build_on_the_start()
-    elif path_finder.overall_time <= 900:
+    elif path_finder.overall_time <= 800:
         path_finder.update_malfunctions()
     return path_finder.print_step()
 
