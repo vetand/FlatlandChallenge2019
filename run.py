@@ -1,7 +1,7 @@
 from flatland.evaluators.client import FlatlandRemoteClient
 from flatland.core.env_observation_builder import DummyObservationBuilder
 from my_observation_builder import CustomObservationBuilder
-from flatland.envs.agent_utils import EnvAgentStatic, EnvAgent, RailAgentStatus
+from flatland.envs.agent_utils import EnvAgent, RailAgentStatus
 import numpy as np
 import time
 import heapq
