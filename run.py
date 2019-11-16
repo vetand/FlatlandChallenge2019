@@ -12,7 +12,7 @@ EPS = 0.0001
 INFINITY = 1000000007
 SAFE_LAYER = 4
 START_TIME_LIMIT = 20
-REPLAN_LIMIT = 150
+REPLAN_LIMIT = 120
 
 #####################################################################
 # Instantiate a Remote Client
@@ -247,7 +247,7 @@ class ISearch:
 
             curNode = (heapq.heappop(openHeap)).priority
             
-            if (curNode.t >= self.maxTime):
+            if (curNode.t >= self.maxTime or curNode.h == INFINITY):
                 break
 
             if (curNode.i == finNode.i and curNode.j == finNode.j):
