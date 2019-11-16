@@ -10,9 +10,9 @@ import numpy as np
 from queue import Queue
 EPS = 0.0001
 INFINITY = 1000000007
-SAFE_LAYER = 5
+SAFE_LAYER = 4
 START_TIME_LIMIT = 20
-REPLAN_LIMIT = 100
+REPLAN_LIMIT = 150
 
 #####################################################################
 # Instantiate a Remote Client
@@ -201,7 +201,7 @@ class ISearch:
             self.lppath.append([])
         self.reservations = dict() # reservated cells
         self.maxTime = 5000
-        self.additional_reserve = 75
+        self.additional_reserve = 20
 
     def startallAgents(self, env, control_agent, order, time_limit, current_step): # preparations and performing A* on the first turn
 
@@ -307,17 +307,17 @@ class ISearch:
             return False
         
     def correct_point(self, scNode, agent):
-        for step in range(-SAFE_LAYER, agent.stepsToExitCell):
+        for step in range(-SAFE_LAYER, agent.stepsToExitCell + SAFE_LAYER):
             if self.checkReservation(scNode.i, scNode.j, max(scNode.t + step, 0)) and self.get_occupator(scNode.i, scNode.j, max(scNode.t + step, 0)) != agent.agentId:
                 return False
-        if (self.checkReservation(scNode.i, scNode.j, scNode.t + agent.stepsToExitCell)):
+        if (self.checkReservation(scNode.i, scNode.j, scNode.t + SAFE_LAYER + agent.stepsToExitCell)):
             current_number = agent.agentId
-            other_number = self.get_occupator(scNode.i, scNode.j, scNode.t + agent.stepsToExitCell)
+            other_number = self.get_occupator(scNode.i, scNode.j, scNode.t + SAFE_LAYER + agent.stepsToExitCell)
             if (current_number > other_number):
                 return False
-        if (self.checkReservation(scNode.i, scNode.j, scNode.t - 1)):
+        if (self.checkReservation(scNode.i, scNode.j, scNode.t - SAFE_LAYER)):
             current_number = agent.agentId
-            other_number = self.get_occupator(scNode.i, scNode.j, scNode.t - 1)
+            other_number = self.get_occupator(scNode.i, scNode.j, scNode.t - SAFE_LAYER)
             if (current_number < other_number):
                 return False
         return True
@@ -380,12 +380,11 @@ class ISearch:
         return successors
     
     def delete_path(self, number):
-        keys_to_delete = []
-        for key in self.reservations:
-            if self.reservations[key] == number:
-                keys_to_delete.append(key)
-        for key in keys_to_delete:
-            del self.reservations[key]
+        for ind in range(1, len(self.lppath[number])):
+            curNode = self.lppath[number][ind]
+            for step in range(SAFE_LAYER):
+                if (curNode.t + step, curNode.i, curNode.j) in self.reservations and self.reservations[(curNode.t + step, curNode.i, curNode.j)] == number:
+                    del self.reservations[(curNode.t + step, curNode.i, curNode.j)]
         self.lppath[number] = []
         
     def replan_agent(self, agent, env, current_step, calculated):
@@ -408,8 +407,12 @@ class ISearch:
                 if self.checkReservation(agent.start_i, agent.start_j, step) and self.get_occupator(agent.start_i, agent.start_j, step) != agent.agentId:
                     passers_by.append(self.get_occupator(agent.start_i, agent.start_j, step))
                     self.delete_path(passers_by[-1])
+                self.reservations[(step, agent.obligations.i, agent.obligations.j)] = agent.agentId
+            agent.obligations.t = agent.obligations.t + self.additional_reserve * (calculated - 1) // 2
+            for step in range(self.additional_reserve * (calculated - 1) // 2):
+                agent.actions.append(4)
 
-        for step in range(agent.stepsToExitCell):
+        for step in range(agent.stepsToExitCell + SAFE_LAYER):
             if self.checkReservation(agent.obligations.i, agent.obligations.j, step + agent.obligations.t) and self.get_occupator(agent.obligations.i, agent.obligations.j, step + agent.obligations.t) != agent.agentId:
                 passers_by.append(self.get_occupator(agent.obligations.i, agent.obligations.j, step + agent.obligations.t))
                 self.delete_path(passers_by[-1])
@@ -482,6 +485,7 @@ def build_start_order(env): # custom desine of start agents order, there is only
         x2, y2 = env.agents[ind].target
         potential = heuristic.get_heuristic(ind, x1, y1, env.agents[ind].direction)
         queue[getStepsToExitCell(env.agents[ind].speed_data['speed'])].append([potential, ind])
+    #queue[1], queue[2], queue[3], queue[4] = queue[4], queue[3], queue[2], queue[1]
     for speed_value in range(1, 5):
         queue[speed_value].sort()
     for speed_value in range(1, 5):
@@ -535,8 +539,6 @@ class Solver:
             elif (current_direction == 3 and self.control_agent.allAgents[number].obligations.j > 0):
                 self.control_agent.allAgents[number].obligations.j -= 1
             remain = self.env.agents[number].malfunction_data['malfunction'] + int((1 - self.env.agents[number].speed_data['position_fraction'] + EPS) / self.env.agents[number].speed_data['speed'])
-            if (self.env.agents[number].malfunction_data['malfunction'] > 0):
-                remain += 1
             self.control_agent.allAgents[number].obligations.t = self.current_step + remain
             
     def set_obligations(self):
@@ -593,9 +595,6 @@ class Solver:
                     self.make_obligation(current)
                     additional = self.search.replan_agent(self.control_agent.allAgents[current], self.env, self.current_step, self.calculated[current])
                     self.calculated[current] += 1
-                    if (self.calculated[current] >= 3):
-                        for ind in range(self.env.get_num_agents()):
-                            self.calculated[current] = max(self.calculated[current] - 1, 0)
                     for i in range(len(additional)):
                         replanning_queue.append(additional[i])
                     pos += 1
@@ -603,9 +602,9 @@ class Solver:
             self.control_agent.allAgents[ind].malfunctioning = (self.env.agents[ind].malfunction_data['malfunction'] > 1)
 
 def my_controller(env, path_finder):
-    if (path_finder.answer_build == False):
+    if (path_finder.answer_build == False and path_finder.current_step == 1):
         path_finder.build_on_the_start()
-    elif path_finder.overall_time <= 600:
+    elif path_finder.current_step != 0 and path_finder.overall_time <= 800:
         path_finder.update_malfunctions()
     return path_finder.print_step()
 
