@@ -13,6 +13,7 @@ INFINITY = 1000000007
 SAFE_LAYER = 4
 START_TIME_LIMIT = 20
 REPLAN_LIMIT = 120
+MAX_TIME_ONE = 30
 
 #####################################################################
 # Instantiate a Remote Client
@@ -242,12 +243,13 @@ class ISearch:
         entry = Entry(startNode, None)
         heapq.heappush(openHeap, entry)
         openCopy[(startNode.i, startNode.j, startNode.dir, startNode.t, startNode.spawned)] = (startNode.h, startNode.f)
+        start_search_time = time.time()
 
         while (not pathFound) and len(openHeap) > 0:
 
             curNode = (heapq.heappop(openHeap)).priority
             
-            if (curNode.t >= self.maxTime or curNode.h == INFINITY):
+            if (curNode.t >= self.maxTime or curNode.h == INFINITY or time.time() - start_search_time >= MAX_TIME_ONE):
                 break
 
             if (curNode.i == finNode.i and curNode.j == finNode.j):
