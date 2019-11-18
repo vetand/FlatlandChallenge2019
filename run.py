@@ -389,7 +389,7 @@ class ISearch:
                     del self.reservations[(curNode.t + step, curNode.i, curNode.j)]
         self.lppath[number] = []
         
-    def replan_agent(self, agent, env, current_step, calculated):
+    def replan_agent(self, agent, env, current_step, calculated, start_replanning_time):
         self.delete_path(agent.agentId)
         if (agent.spawned == False):
             for step in range(current_step, agent.obligations.t):
@@ -421,6 +421,8 @@ class ISearch:
 
         path_exists = self.startSearch(agent, env, current_step)
         while path_exists == False:
+            if (time.time() - start_replanning_time >= REPLAN_LIMIT):
+                break
             agent_dead = False
             for step in range(agent.obligations.t + agent.stepsToExitCell, self.maxTime):
                 if self.checkReservation(agent.obligations.i, agent.obligations.j, step) and self.get_occupator(agent.obligations.i, agent.obligations.j, step) != agent.agentId:
@@ -595,7 +597,7 @@ class Solver:
                     else:
                         self.control_agent.reset_agent(current, self.env.agents[current].position[0], self.env.agents[current].position[1])
                     self.make_obligation(current)
-                    additional = self.search.replan_agent(self.control_agent.allAgents[current], self.env, self.current_step, self.calculated[current])
+                    additional = self.search.replan_agent(self.control_agent.allAgents[current], self.env, self.current_step, self.calculated[current], start_replanning_time)
                     self.calculated[current] += 1
                     for i in range(len(additional)):
                         replanning_queue.append(additional[i])
