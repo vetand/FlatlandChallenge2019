@@ -11,8 +11,8 @@ from queue import Queue
 EPS = 0.0001
 INFINITY = 1000000007
 SAFE_LAYER = 4
-START_TIME_LIMIT = 20
-REPLAN_LIMIT = 120
+START_TIME_LIMIT = 100
+REPLAN_LIMIT = 150
 MAX_TIME_ONE = 30
 
 #####################################################################
@@ -489,7 +489,7 @@ def build_start_order(env): # custom desine of start agents order, there is only
         x2, y2 = env.agents[ind].target
         potential = heuristic.get_heuristic(ind, x1, y1, env.agents[ind].direction)
         queue[getStepsToExitCell(env.agents[ind].speed_data['speed'])].append([potential, ind])
-    #queue[1], queue[2], queue[3], queue[4] = queue[4], queue[3], queue[2], queue[1]
+    queue[1], queue[2], queue[3], queue[4] = queue[4], queue[3], queue[2], queue[1]
     for speed_value in range(1, 5):
         queue[speed_value].sort()
     for speed_value in range(1, 5):
