@@ -489,7 +489,7 @@ def build_start_order(env): # custom desine of start agents order, there is only
         x2, y2 = env.agents[ind].target
         potential = heuristic.get_heuristic(ind, x1, y1, env.agents[ind].direction)
         queue[getStepsToExitCell(env.agents[ind].speed_data['speed'])].append([potential, ind])
-    queue[1], queue[2], queue[3], queue[4] = queue[4], queue[3], queue[2], queue[1]
+    #queue[1], queue[2], queue[3], queue[4] = queue[4], queue[3], queue[2], queue[1]
     for speed_value in range(1, 5):
         queue[speed_value].sort()
     for speed_value in range(1, 5):
