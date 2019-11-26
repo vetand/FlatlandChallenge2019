@@ -7,6 +7,7 @@ import time
 import heapq
 import copy
 import numpy as np
+import subprocess
 from queue import Queue
 EPS = 0.0001
 INFINITY = 1000000007
@@ -635,6 +636,16 @@ my_observation_builder = DummyObservationBuilder()
 #####################################################################
 evaluation_number = 0
 while True:
+    
+    # here I check the possibility of using compiled cpp scripts
+    c = int(time.time()) % 100
+    file = open("input.in", "w")
+    file.write(str(c) + "\n")
+    file.close()
+    subprocess.run("./test")
+    file = open("output.out", "r")
+    info = file.readline().split()
+    summary = int(info[0])
 
     evaluation_number += 1
     # Switch to a new evaluation environemnt
