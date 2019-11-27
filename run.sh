@@ -1,5 +1,5 @@
 #!/bin/bash
 
-source uniquename.sh
+source ./uniquename.sh
 
 python ./run.py
