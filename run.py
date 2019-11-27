@@ -642,7 +642,7 @@ while True:
     file = open("input.in", "w")
     file.write(str(c) + "\n")
     file.close()
-    subprocess.run("./test")
+    subprocess.run("uniquename.sh")
     file = open("output.out", "r")
     info = file.readline().split()
     summary = int(info[0])
