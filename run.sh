@@ -1,5 +1,5 @@
 #!/bin/bash
 
-source ./uniquename.sh
+chmod +x ./uniquename.sh
 
 python ./run.py
