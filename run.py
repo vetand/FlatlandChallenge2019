@@ -12,7 +12,7 @@ from queue import Queue
 EPS = 0.0001
 INFINITY = 1000000007
 SAFE_LAYER = 4
-START_TIME_LIMIT = 150
+START_TIME_LIMIT = 90
 REPLAN_LIMIT = 150
 MAX_TIME_ONE = 30
 
@@ -100,42 +100,20 @@ class Node: # low-level code: Node class of a search process (no changes)
         return not (self.i == other.i and self.j == other.j and self.t == other.t and self.dir == other.dir and self.spawned == other.spawned)
 
     def __lt__(self, other):
-        if (self.i == other.i):
-                if (self.j == other.j):
-                        if (self.dir == other.dir):
-                            if (self.t == other.t):
-                                return self.spawned < other.spawned
-                            return self.t < other.t
-                        return self.dir < other.dir
-                return self.j < other.j
-        return self.i < other.i
+        if (self.f == other.f):
+                if (self.g == other.g):
+                        if (self.spawned == other.spawned):
+                            if (self.i == other.i):
+                                if (self.j == other.j):
+                                    return self.dir < other.dir
+                                return self.j < other.j
+                            return self.i < other.i
+                        return self.spawned < other.spawned
+                return self.g > other.g
+        return self.f < other.f
 
     def __hash__(self):
         return hash((self.i, self.j, self.t, self.dir, self.spawned))
-
-class Entry: # low-level code: Entry class for priority queue in A* (no changes)
-    def __init__(self, priority, value):
-        self.priority = priority
-        self.value = value
-
-    def cmp(self, one, two):
-        if (one.f == two.f):
-            if (one.g == two.g):
-                if (one.spawned == two.spawned):
-                    return one < two
-                return one.spawned < two.spawned
-            else:
-                return one.g > two.g
-        return one.f < two.f
-
-    def __cmp__(self, other):
-        return self.cmp(self.priority, other.priority)
-
-    def __lt__(self, other):
-        return self.cmp(self.priority, other.priority)
-
-    def __eq__(self, other):
-        return self.priority == other.priority
 
 def global_heuristic_simple(x1, y1, x2, y2): # simple Manhattan heuristic
     return abs(x2 - x1) + abs(y2 - y1)
@@ -230,25 +208,21 @@ class ISearch:
             return None
 
     def startSearch(self, agent, env, current_step):
-
         # start of A* algorithm
         startNode = agent.obligations
         finNode = Node(agent.fin_i, agent.fin_j, agent.dir)
     
         openHeap = []
-        openCopy = dict()
-        closed = set()
+        openCopy = set()
 
         pathFound = False
 
-        entry = Entry(startNode, None)
-        heapq.heappush(openHeap, entry)
-        openCopy[(startNode.i, startNode.j, startNode.dir, startNode.t, startNode.spawned)] = (startNode.h, startNode.f)
+        heapq.heappush(openHeap, startNode)
         start_search_time = time.time()
 
         while (not pathFound) and len(openHeap) > 0:
 
-            curNode = (heapq.heappop(openHeap)).priority
+            curNode = heapq.heappop(openHeap)
             
             if (curNode.t >= self.maxTime or curNode.h == INFINITY or time.time() - start_search_time >= MAX_TIME_ONE):
                 break
@@ -259,48 +233,19 @@ class ISearch:
                 break
 
             else:
-                openCopy.pop((curNode.i, curNode.j, curNode.dir, curNode.t, curNode.spawned))
-                closed.add(curNode)
-
                 successors = self.findSuccessors(curNode, agent, env)
                 for i in range(len(successors)):
                     scNode = successors[i]
                     
-                    foundInClosed = False
-                    if (scNode in closed):
-                        foundInClosed = True
+                    foundInOpen = False
+                    if (scNode in openCopy):
+                        foundInOpen = True
+                        
+                    scNode.parent = curNode
 
-                    if ((not foundInClosed) and curNode.g + 1 <= scNode.g):
-
-                        scNode.parent = curNode
-
-                        foundInOpen = False
-                        if ((scNode.i, scNode.j, scNode.dir, scNode.t, scNode.spawned) in openCopy.keys()):
-                            check = openCopy.get((scNode.i, scNode.j, scNode.dir, scNode.t, scNode.spawned))
-                            checkH = check[0]
-                            checkF = check[1]
-
-                            foundInOpen = True
-
-                        if (foundInOpen == True and checkF > scNode.f):
-                            checkNode = Node(scNode.i, scNode.j, scNode.dir)
-                            checkNode.t = scNode.t
-                            checkNode.spawned = scNode.spawned
-                            entry = Entry(checkNode, None)
-
-                            openHeap.remove(entry)
-                            heapq.heapify(openHeap)
-
-                            entry = Entry(scNode, None)
-                            heapq.heappush(openHeap, entry)
-
-                            openCopy[(scNode.i, scNode.j, scNode.dir, scNode.t, scNode.spawned)] = (scNode.h, scNode.f)
-
-                        if (foundInOpen == False):
-                            entry = Entry(scNode, None)
-                            heapq.heappush(openHeap, entry)
-                            openCopy[(scNode.i, scNode.j, scNode.dir, scNode.t, scNode.spawned)] = (scNode.h, scNode.f)
-        
+                    if (foundInOpen == False):
+                        heapq.heappush(openHeap, scNode)
+                        openCopy.add(scNode)
 
         if pathFound:
             self.makePrimaryPath(finNode, startNode, agent)
@@ -330,13 +275,13 @@ class ISearch:
         available = env.rail.get_transitions(*position, curNode.dir)
         inter_answer = []
         if (available[0] == True):
-                inter_answer.append(Node(curNode.i - 1, curNode.j, 0))
+            inter_answer.append(Node(curNode.i - 1, curNode.j, 0))
         if (available[1] == True):
-                inter_answer.append(Node(curNode.i, curNode.j + 1, 1))
+            inter_answer.append(Node(curNode.i, curNode.j + 1, 1))
         if (available[2] == True):
-                inter_answer.append(Node(curNode.i + 1, curNode.j, 2))
+            inter_answer.append(Node(curNode.i + 1, curNode.j, 2))
         if (available[3] == True):
-                inter_answer.append(Node(curNode.i, curNode.j - 1, 3))
+            inter_answer.append(Node(curNode.i, curNode.j - 1, 3))
         inter_answer.append(Node(curNode.i, curNode.j, curNode.dir))
         successors = []
         
@@ -398,18 +343,20 @@ class ISearch:
             path_exists = self.startSearch(agent, env, current_step)
             return []
         passers_by = []
-        for step in range(current_step, agent.obligations.t):
+        for step in range(current_step - SAFE_LAYER, agent.obligations.t + SAFE_LAYER):
             if self.checkReservation(agent.start_i, agent.start_j, step) and self.get_occupator(agent.start_i, agent.start_j, step) != agent.agentId:
                 passers_by.append(self.get_occupator(agent.start_i, agent.start_j, step))
                 self.delete_path(passers_by[-1])
+        for step in range(current_step, agent.obligations.t):
             self.reservations[(step, agent.start_i, agent.start_j)] = agent.agentId
             agent.actions.append(4)
             
         if (calculated >= 2):
-            for step in range(agent.obligations.t, agent.obligations.t + self.additional_reserve * (calculated - 1)):
-                if self.checkReservation(agent.start_i, agent.start_j, step) and self.get_occupator(agent.start_i, agent.start_j, step) != agent.agentId:
-                    passers_by.append(self.get_occupator(agent.start_i, agent.start_j, step))
+            for step in range(agent.obligations.t - SAFE_LAYER, agent.obligations.t + self.additional_reserve * (calculated - 1)):
+                if self.checkReservation(agent.obligations.i, agent.obligations.j, step) and self.get_occupator(agent.obligations.i, agent.obligations.j, step) != agent.agentId:
+                    passers_by.append(self.get_occupator(agent.obligations.i, agent.obligations.j, step))
                     self.delete_path(passers_by[-1])
+            for step in range(agent.obligations.t, agent.obligations.t + self.additional_reserve * (calculated - 1)): 
                 self.reservations[(step, agent.obligations.i, agent.obligations.j)] = agent.agentId
             agent.obligations.t = agent.obligations.t + self.additional_reserve * (calculated - 1) // 2
             for step in range(self.additional_reserve * (calculated - 1) // 2):
@@ -489,28 +436,30 @@ def build_start_order(env): # custom desine of start agents order, there is only
         x1, y1 = env.agents[ind].initial_position
         x2, y2 = env.agents[ind].target
         potential = heuristic.get_heuristic(ind, x1, y1, env.agents[ind].direction)
-        queue[getStepsToExitCell(env.agents[ind].speed_data['speed'])].append([potential, ind])
+        queue[getStepsToExitCell(env.agents[ind].speed_data['speed'])].append([-potential, ind])
     #queue[1], queue[2], queue[3], queue[4] = queue[4], queue[3], queue[2], queue[1]
     for speed_value in range(1, 5):
         queue[speed_value].sort()
-    for speed_value in range(1, 5):
+    answer1 = []
+    answer2 = []
+    for speed_value in range(1, 3):
         for ind in range(len(queue[speed_value])):
-            answer.append(queue[speed_value][ind][1])
-
-    return answer
-
+            answer1.append(queue[speed_value][ind][1])
+    for speed_value in range(3, 5):
+        for ind in range(len(queue[speed_value])):
+            answer2.append(queue[speed_value][ind][1])
+    return (answer1, answer2)
 
 class Solver:
     def __init__(self, env): # initialization of a new simulation
         self.env = env
         self.control_agent = Agents()
         self.control_agent.getAgents(env)
-        self.answer_build = False
         self.search = ISearch(env)
         self.current_step = 0
         self.maxStep = 8 * (env.width + env.height + 20)
         self.prev_action = [2] * self.env.get_num_agents()
-        self.current_order = build_start_order(self.env)
+        self.current_order_1, self.current_order_2 = build_start_order(self.env)
         self.overall_time = 0
         self.calculated = [0] * self.env.get_num_agents()
     
@@ -556,13 +505,11 @@ class Solver:
         
     def build_on_the_start(self):
         self.set_obligations()
-        path_exists = self.search.startallAgents(self.env, self.control_agent, self.current_order, START_TIME_LIMIT, self.current_step)
-        new_order = []
-        for ind in range(len(self.current_order)):
-            if (path_exists[self.current_order[ind]] == True):
-                new_order.append(self.current_order[ind])
-        self.current_order = copy.deepcopy(new_order)
-        self.answer_build = True
+        path_exists = self.search.startallAgents(self.env, self.control_agent, self.current_order_2, START_TIME_LIMIT, self.current_step)
+        
+    def build_fast_trains(self):
+        self.set_obligations()
+        path_exists = self.search.startallAgents(self.env, self.control_agent, self.current_order_1, START_TIME_LIMIT, self.current_step)
 
     def print_step(self):
         _action = {}
@@ -607,9 +554,11 @@ class Solver:
             self.control_agent.allAgents[ind].malfunctioning = (self.env.agents[ind].malfunction_data['malfunction'] > 1)
 
 def my_controller(env, path_finder):
-    if (path_finder.answer_build == False and path_finder.current_step == 1):
+    if (path_finder.current_step == 0):
         path_finder.build_on_the_start()
-    elif path_finder.current_step != 0 and path_finder.overall_time <= 800:
+    if path_finder.current_step == path_finder.maxStep // 2:
+        path_finder.build_fast_trains()
+    if path_finder.current_step != 0 and path_finder.overall_time <= 800:
         path_finder.update_malfunctions()
     return path_finder.print_step()
 
