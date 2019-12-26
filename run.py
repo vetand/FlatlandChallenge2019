@@ -261,13 +261,13 @@ class ISearch:
         available = env.rail.get_transitions(*position, curNode.dir)
         inter_answer = []
         if (available[0] == True):
-                inter_answer.append(Node(curNode.i - 1, curNode.j, 0))
+            inter_answer.append(Node(curNode.i - 1, curNode.j, 0))
         if (available[1] == True):
-                inter_answer.append(Node(curNode.i, curNode.j + 1, 1))
+            inter_answer.append(Node(curNode.i, curNode.j + 1, 1))
         if (available[2] == True):
-                inter_answer.append(Node(curNode.i + 1, curNode.j, 2))
+            inter_answer.append(Node(curNode.i + 1, curNode.j, 2))
         if (available[3] == True):
-                inter_answer.append(Node(curNode.i, curNode.j - 1, 3))
+            inter_answer.append(Node(curNode.i, curNode.j - 1, 3))
         inter_answer.append(Node(curNode.i, curNode.j, curNode.dir))
         successors = []
         
@@ -289,28 +289,22 @@ class ISearch:
             return successors
         
         for scNode in inter_answer:
-            scNode.g = curNode.g + 1
-            scNode.h = heuristic.get_heuristic(agent.agentId, scNode.i, scNode.j, scNode.dir)
-            scNode.f = scNode.g + scNode.h
+            scNode.h = heuristic.get_heuristic(agent.agentId, scNode.i, scNode.j, scNode.dir) * agent.stepsToExitCell
             scNode.spawned = True
 
             if scNode.i == curNode.i and scNode.j == curNode.j:
                 scNode.t = curNode.t + 1
+                scNode.g = curNode.g + 1
             else:
                 scNode.t = curNode.t + agent.stepsToExitCell
+                scNode.g = curNode.g + agent.stepsToExitCell
+                
+            scNode.f = scNode.g + scNode.h
 
             if not self.correct_point(scNode, agent):
                 continue
 
-            if (not self.checkReservation(scNode.i, scNode.j, curNode.t) or not self.checkReservation(curNode.i, curNode.j, scNode.t)): # definitely no edge conflict
-                successors.append(scNode)
-                continue
-
-            # we don`t catch edge conflict only if agents have the same speed (so, no changes)
-            edge_conflict = ((self.get_occupator(scNode.i, scNode.j, curNode.t) == self.get_occupator(curNode.i, curNode.j, scNode.t)) and
-                            (self.get_occupator(scNode.i, scNode.j, curNode.t) != agent.agentId))
-            if (not edge_conflict):
-                successors.append(scNode)
+            successors.append(scNode)
         return successors
     
     def delete_path(self, number):
