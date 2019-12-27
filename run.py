@@ -251,13 +251,19 @@ class ISearch:
             return False
         
     def correct_point(self, scNode, agent):
-        for step in range(2 * agent.stepsToExitCell + 1):
+        for step in range(2 * agent.stepsToExitCell):
             if self.checkReservation(scNode.i, scNode.j, scNode.t + step) and self.get_occupator(scNode.i, scNode.j, scNode.t + step) != agent.agentId:
                 return False
-        for step in range(0, -SAFE_LAYER - 1, -1):
+        if self.checkReservation(scNode.i, scNode.j, scNode.t + 2 * agent.stepsToExitCell):
+            other_number = self.get_occupator(scNode.i, scNode.j, scNode.t + 2 * agent.stepsToExitCell)
+            if other_number < agent.agentId:
+                return False
+        for step in range(0, -SAFE_LAYER - 2, -1):
             if self.checkReservation(scNode.i, scNode.j, scNode.t + step) and self.get_occupator(scNode.i, scNode.j, scNode.t + step) != agent.agentId:
                 other_number = self.get_occupator(scNode.i, scNode.j, scNode.t + step)
-                if path_finder.control_agent.allAgents[other_number].stepsToExitCell + step >= -1:
+                if other_number < agent.agentId and path_finder.control_agent.allAgents[other_number].stepsToExitCell + step >= -1:
+                    return False
+                elif other_number > agent.agentId and path_finder.control_agent.allAgents[other_number].stepsToExitCell + step >= 0:
                     return False
         return True
 
@@ -337,10 +343,14 @@ class ISearch:
             self.reservations[(step, agent.start_i, agent.start_j)] = agent.agentId
             agent.actions.append(4)
         
-        for step in range(0, -SAFE_LAYER - 1, -1):
+        for step in range(0, -SAFE_LAYER - 2, -1):
             if self.checkReservation(agent.obligations.i, agent.obligations.j, step + agent.obligations.t) and self.get_occupator(agent.obligations.i, agent.obligations.j, step + agent.obligations.t) != agent.agentId:
                 other_number = self.get_occupator(agent.obligations.i, agent.obligations.j, step + agent.obligations.t)
-                if path_finder.control_agent.allAgents[other_number].stepsToExitCell + step >= -1:
+                if other_number < agent.agentId and path_finder.control_agent.allAgents[other_number].stepsToExitCell + step >= -1:
+                    passers_by.append(other_number)
+                    self.delete_path(passers_by[-1])
+                    calculated[agent.agentId] += 1
+                elif other_number > agent.agentId and path_finder.control_agent.allAgents[other_number].stepsToExitCell + step >= 0:
                     passers_by.append(other_number)
                     self.delete_path(passers_by[-1])
                     calculated[agent.agentId] += 1
@@ -356,9 +366,16 @@ class ISearch:
             for step in range(self.additional_reserve * (calculated[agent.agentId] - 1) // 2):
                 agent.actions.append(4)
                 
-        for step in range(agent.stepsToExitCell + 1):
+        for step in range(agent.stepsToExitCell):
             if self.checkReservation(agent.obligations.i, agent.obligations.j, step + agent.obligations.t) and self.get_occupator(agent.obligations.i, agent.obligations.j, step + agent.obligations.t) != agent.agentId:
                 passers_by.append(self.get_occupator(agent.obligations.i, agent.obligations.j, step + agent.obligations.t))
+                self.delete_path(passers_by[-1])
+                calculated[agent.agentId] += 1
+                
+        if self.checkReservation(agent.obligations.i, agent.obligations.j, agent.stepsToExitCell + agent.obligations.t):
+            other_number = self.get_occupator(agent.obligations.i, agent.obligations.j, agent.stepsToExitCell + agent.obligations.t)
+            if other_number < agent.agentId:
+                passers_by.append(self.get_occupator(agent.obligations.i, agent.obligations.j, agent.stepsToExitCell + agent.obligations.t))
                 self.delete_path(passers_by[-1])
                 calculated[agent.agentId] += 1
 
