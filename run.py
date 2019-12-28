@@ -218,7 +218,7 @@ class ISearch:
 
         while (not pathFound) and len(openHeap) > 0:
 
-            curNode = heapq.heappop(openHeap) 
+            curNode = heapq.heappop(openHeap)
 
             if (curNode.t >= self.maxTime or curNode.h == INFINITY or time.time() - start_search_time >= MAX_TIME_ONE):
                 break
@@ -251,20 +251,17 @@ class ISearch:
             return False
         
     def correct_point(self, scNode, agent):
-        for step in range(2 * agent.stepsToExitCell):
+        for step in range(agent.stepsToExitCell):
             if self.checkReservation(scNode.i, scNode.j, scNode.t + step) and self.get_occupator(scNode.i, scNode.j, scNode.t + step) != agent.agentId:
                 return False
-        if self.checkReservation(scNode.i, scNode.j, scNode.t + 2 * agent.stepsToExitCell):
-            other_number = self.get_occupator(scNode.i, scNode.j, scNode.t + 2 * agent.stepsToExitCell)
+        if self.checkReservation(scNode.i, scNode.j, scNode.t + agent.stepsToExitCell):
+            other_number = self.get_occupator(scNode.i, scNode.j, scNode.t + agent.stepsToExitCell)
             if other_number < agent.agentId:
                 return False
-        for step in range(0, -SAFE_LAYER - 2, -1):
-            if self.checkReservation(scNode.i, scNode.j, scNode.t + step) and self.get_occupator(scNode.i, scNode.j, scNode.t + step) != agent.agentId:
-                other_number = self.get_occupator(scNode.i, scNode.j, scNode.t + step)
-                if other_number < agent.agentId and path_finder.control_agent.allAgents[other_number].stepsToExitCell + step >= -1:
-                    return False
-                elif other_number > agent.agentId and path_finder.control_agent.allAgents[other_number].stepsToExitCell + step >= 0:
-                    return False
+        if self.checkReservation(scNode.i, scNode.j, scNode.t - 1):
+            other_number = self.get_occupator(scNode.i, scNode.j, scNode.t - 1)
+            if other_number > agent.agentId:
+                return False
         return True
 
     def findSuccessors(self, curNode, agent, env): # find neighbors of current cell, which we are able to visit
@@ -324,6 +321,15 @@ class ISearch:
                     del self.reservations[(curNode.t + step, curNode.i, curNode.j)]
         self.lppath[number] = []
         
+    def need_enter(self, scNode, agent, first_agent):
+        if self.checkReservation(agent.obligations.i, agent.obligations.j, agent.obligations.t):
+            other_number = self.get_occupator(agent.obligations.i, agent.obligations.j, agent.obligations.t)
+            if other_number != agent.agentId and (other_number < agent.agentId or other_number == first_agent):
+                return False
+        if self.checkReservation(agent.obligations.i, agent.obligations.j, agent.obligations.t - 1) and self.get_occupator(agent.obligations.i, agent.obligations.j, agent.obligations.t - 1) > agent.agentId:
+            return False
+        return True
+        
     def replan_agent(self, agent, env, current_step, calculated, start_replanning_time):
         self.delete_path(agent.agentId)
         if (agent.spawned == False):
@@ -333,27 +339,62 @@ class ISearch:
             return []
         passers_by = []
 
-        for step in range(current_step, agent.obligations.t + 1):
+        for step in range(current_step, agent.obligations.t):
             if self.checkReservation(agent.start_i, agent.start_j, step) and self.get_occupator(agent.start_i, agent.start_j, step) != agent.agentId:
                 passers_by.append(self.get_occupator(agent.start_i, agent.start_j, step))
                 calculated[agent.agentId] += 1
                 self.delete_path(passers_by[-1])
-
-        for step in range(current_step, agent.obligations.t):
             self.reservations[(step, agent.start_i, agent.start_j)] = agent.agentId
             agent.actions.append(4)
         
-        for step in range(0, -SAFE_LAYER - 2, -1):
-            if self.checkReservation(agent.obligations.i, agent.obligations.j, step + agent.obligations.t) and self.get_occupator(agent.obligations.i, agent.obligations.j, step + agent.obligations.t) != agent.agentId:
-                other_number = self.get_occupator(agent.obligations.i, agent.obligations.j, step + agent.obligations.t)
-                if other_number < agent.agentId and path_finder.control_agent.allAgents[other_number].stepsToExitCell + step >= -1:
+        if self.checkReservation(agent.start_i, agent.start_j, agent.obligations.t):
+            other_number = self.get_occupator(agent.start_i, agent.start_j, agent.obligations.t)
+            if other_number < agent.agentId:
+                passers_by.append(other_number)
+                calculated[agent.agentId] += 1
+                self.delete_path(passers_by[-1])
+                
+        if self.checkReservation(agent.obligations.i, agent.obligations.j, agent.obligations.t):
+            first_agent = self.get_occupator(agent.obligations.i, agent.obligations.j, agent.obligations.t)
+        else:
+            first_agent = -1
+
+        while not self.need_enter(agent.obligations, agent, first_agent):
+            if self.checkReservation(agent.start_i, agent.start_j, agent.obligations.t) and self.get_occupator(agent.start_i, agent.start_j, agent.obligations.t) != agent.agentId:
+                passers_by.append(self.get_occupator(agent.start_i, agent.start_j, agent.obligations.t))
+                calculated[agent.agentId] += 1
+                self.delete_path(passers_by[-1])
+
+            self.reservations[(agent.obligations.t, agent.start_i, agent.start_j)] = agent.agentId
+            agent.actions.append(4)
+            agent.obligations.t += 1
+
+            if self.checkReservation(agent.start_i, agent.start_j, agent.obligations.t):
+                other_number = self.get_occupator(agent.start_i, agent.start_j, agent.obligations.t)
+                if other_number < agent.agentId:
                     passers_by.append(other_number)
-                    self.delete_path(passers_by[-1])
                     calculated[agent.agentId] += 1
-                elif other_number > agent.agentId and path_finder.control_agent.allAgents[other_number].stepsToExitCell + step >= 0:
-                    passers_by.append(other_number)
                     self.delete_path(passers_by[-1])
-                    calculated[agent.agentId] += 1
+                    
+        if self.checkReservation(agent.obligations.i, agent.obligations.j, agent.obligations.t - 1):
+            other_number = self.get_occupator(agent.obligations.i, agent.obligations.j, agent.obligations.t - 1)
+            if other_number > agent.agentId:
+                passers_by.append(other_number)
+                calculated[agent.agentId] += 1
+                self.delete_path(passers_by[-1])
+                
+        for step in range(agent.stepsToExitCell):
+            if self.checkReservation(agent.obligations.i, agent.obligations.j, agent.obligations.t + step) and self.get_occupator(agent.obligations.i, agent.obligations.j, agent.obligations.t + step) != agent.agentId:
+                passers_by.append(self.get_occupator(agent.obligations.i, agent.obligations.j, agent.obligations.t + step))
+                calculated[agent.agentId] += 1
+                self.delete_path(passers_by[-1])
+                
+        if self.checkReservation(agent.obligations.i, agent.obligations.j, agent.obligations.t + agent.stepsToExitCell):
+            other_number = self.get_occupator(agent.obligations.i, agent.obligations.j, agent.obligations.t + agent.stepsToExitCell)
+            if other_number < agent.agentId:
+                passers_by.append(other_number)
+                calculated[agent.agentId] += 1
+                self.delete_path(passers_by[-1])
             
         if (calculated[agent.agentId] >= 2):
             for step in range(agent.obligations.t, agent.obligations.t + self.additional_reserve * (calculated[agent.agentId] - 1)):
@@ -365,19 +406,6 @@ class ISearch:
             agent.obligations.t = agent.obligations.t + self.additional_reserve * (calculated[agent.agentId] - 1) // 2
             for step in range(self.additional_reserve * (calculated[agent.agentId] - 1) // 2):
                 agent.actions.append(4)
-                
-        for step in range(agent.stepsToExitCell):
-            if self.checkReservation(agent.obligations.i, agent.obligations.j, step + agent.obligations.t) and self.get_occupator(agent.obligations.i, agent.obligations.j, step + agent.obligations.t) != agent.agentId:
-                passers_by.append(self.get_occupator(agent.obligations.i, agent.obligations.j, step + agent.obligations.t))
-                self.delete_path(passers_by[-1])
-                calculated[agent.agentId] += 1
-                
-        if self.checkReservation(agent.obligations.i, agent.obligations.j, agent.stepsToExitCell + agent.obligations.t):
-            other_number = self.get_occupator(agent.obligations.i, agent.obligations.j, agent.stepsToExitCell + agent.obligations.t)
-            if other_number < agent.agentId:
-                passers_by.append(self.get_occupator(agent.obligations.i, agent.obligations.j, agent.stepsToExitCell + agent.obligations.t))
-                self.delete_path(passers_by[-1])
-                calculated[agent.agentId] += 1
 
         path_exists = self.startSearch(agent, env, current_step)
         while path_exists == False:
@@ -386,8 +414,11 @@ class ISearch:
             agent_dead = False
             for step in range(agent.obligations.t + agent.stepsToExitCell, self.maxTime):
                 if self.checkReservation(agent.obligations.i, agent.obligations.j, step) and self.get_occupator(agent.obligations.i, agent.obligations.j, step) != agent.agentId:
-                    passers_by.append(self.get_occupator(agent.obligations.i, agent.obligations.j, step))
-                    self.delete_path(passers_by[-1])
+                    if len(passers_by) > 0 and self.get_occupator(agent.obligations.i, agent.obligations.j, step) == passers_by[-1]:
+                        self.delete_all(passers_by[-1])
+                    else:
+                        passers_by.append(self.get_occupator(agent.obligations.i, agent.obligations.j, step))
+                        self.delete_path(passers_by[-1])
                     calculated[agent.agentId] += 1
                     break
                 if step == self.maxTime - 1:
@@ -396,8 +427,25 @@ class ISearch:
                 break
             path_exists = self.startSearch(agent, env, current_step)
         return passers_by
+    
+    def cut_extra(self, startNode, agent):
+        for time in range(startNode.t + agent.stepsToExitCell, self.maxTime):
+            if (time, startNode.i, startNode.j) in self.reservations and self.reservations[(time, startNode.i, startNode.j)] == agent.agentId:
+                del self.reservations[(time, startNode.i, startNode.j)]
+            else:
+                break
+                
+    def delete_all(self, number):
+        to_delete = []
+        for cell in self.reservations:
+            if self.reservations[cell] == number:
+                to_delete.append(cell)
+        for cell in to_delete:
+            del self.reservations[cell]
 
     def makePrimaryPath(self, curNode, startNode, agent): # path of nodes
+        
+        self.cut_extra(startNode, agent)
 
         wait_action = False
         while curNode != startNode:
@@ -503,7 +551,7 @@ class Solver:
                 self.control_agent.allAgents[number].obligations.i += 1
             elif (current_direction == 3 and self.control_agent.allAgents[number].obligations.j > 0):
                 self.control_agent.allAgents[number].obligations.j -= 1            
-            remain = self.env.agents[number].malfunction_data['malfunction'] + int((1 - self.env.agents[number].speed_data['position_fraction'] + EPS) / self.env.agents[number].speed_data['speed'])
+            remain = self.env.agents[number].malfunction_data['malfunction'] + max(int((1 - self.env.agents[number].speed_data['position_fraction'] + EPS) / self.env.agents[number].speed_data['speed']), 1)
             self.control_agent.allAgents[number].obligations.t = self.current_step + remain
             
     def set_obligations(self):
