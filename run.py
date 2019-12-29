@@ -11,7 +11,7 @@ from queue import Queue
 EPS = 0.0001
 INFINITY = 1000000007
 SAFE_LAYER = 4
-START_TIME_LIMIT = 40
+START_TIME_LIMIT = 100
 REPLAN_LIMIT = 120
 MAX_TIME_ONE = 25
 
@@ -176,7 +176,7 @@ class ISearch:
             self.lppath.append([])
         self.reservations = dict() # reservated cells
         self.maxTime = 5000
-        self.additional_reserve = 4
+        self.additional_reserve = 8
 
     def startallAgents(self, env, control_agent, order, time_limit, current_step): # preparations and performing A* on the first turn
 
@@ -433,7 +433,10 @@ class ISearch:
                     if self.checkReservation(agent.obligations.i, agent.obligations.j, step):
                         other_number = self.get_occupator(agent.obligations.i, agent.obligations.j, step)
                         if other_number != agent.agentId:
-                            self.delete_all(other_number) 
+                            self.delete_all(other_number
+                            
+            if agent_dead and not path_exists:
+                break
 
             path_exists = self.startSearch(agent, env, current_step)
         return passers_by
@@ -628,7 +631,7 @@ def my_controller(env, path_finder):
             path_finder.control_agent.allAgents[ind].spawned = True
     if path_finder.answer_build == False:
         path_finder.build_on_the_start()
-    elif path_finder.current_step != 0 and path_finder.overall_time <= 550:
+    elif path_finder.current_step != 0 and path_finder.overall_time <= 400:
         path_finder.update_malfunctions()
     return path_finder.print_step()
 
