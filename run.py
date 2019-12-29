@@ -433,7 +433,7 @@ class ISearch:
                     if self.checkReservation(agent.obligations.i, agent.obligations.j, step):
                         other_number = self.get_occupator(agent.obligations.i, agent.obligations.j, step)
                         if other_number != agent.agentId:
-                            self.delete_all(other_number
+                            self.delete_all(other_number)
                             
             if agent_dead and not path_exists:
                 break
