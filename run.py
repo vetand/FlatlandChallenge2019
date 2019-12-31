@@ -11,7 +11,7 @@ from queue import Queue
 EPS = 0.0001
 INFINITY = 1000000007
 SAFE_LAYER = 4
-START_TIME_LIMIT = 100
+START_TIME_LIMIT = 40
 REPLAN_LIMIT = 120
 MAX_TIME_ONE = 25
 
@@ -206,6 +206,8 @@ class ISearch:
 
         # start of A* algorithm
         startNode = agent.obligations
+        if agent.spawned and not self.correct_point(startNode, agent):
+            return False
         finNode = Node(agent.fin_i, agent.fin_j, agent.dir)
 
         openHeap = []
@@ -330,7 +332,7 @@ class ISearch:
             return False
         return True
         
-    def replan_agent(self, agent, env, current_step, calculated, start_replanning_time):
+    def replan_agent(self, agent, env, current_step, calculated, start_replanning_time, obligation_changes):
         self.delete_path(agent.agentId)
         if (agent.spawned == False):
             for step in range(current_step, agent.obligations.t):
@@ -373,6 +375,7 @@ class ISearch:
                 self.reservations[(agent.obligations.t, agent.start_i, agent.start_j)] = agent.agentId
                 agent.actions.append(4)
                 agent.obligations.t += 1
+                obligation_changes[agent.agentId] = copy.deepcopy(agent.obligations)
 
                 if self.checkReservation(agent.start_i, agent.start_j, agent.obligations.t):
                     other_number = self.get_occupator(agent.start_i, agent.start_j, agent.obligations.t)
@@ -381,6 +384,7 @@ class ISearch:
                         self.delete_path(passers_by[-1])
             
         if (calculated[agent.agentId] >= 2):
+            path_finder.need_post_phase = True
             for step in range(agent.obligations.t, agent.obligations.t + self.additional_reserve * (calculated[agent.agentId] - 1)):
                 if self.checkReservation(agent.obligations.i, agent.obligations.j, step) and self.get_occupator(agent.obligations.i, agent.obligations.j, step) != agent.agentId:
                     passers_by.append(self.get_occupator(agent.obligations.i, agent.obligations.j, step))
@@ -439,14 +443,7 @@ class ISearch:
                 break
 
             path_exists = self.startSearch(agent, env, current_step)
-        return passers_by
-    
-    def cut_extra(self, startNode, agent):
-        for time in range(startNode.t + agent.stepsToExitCell, self.maxTime):
-            if (time, startNode.i, startNode.j) in self.reservations and self.reservations[(time, startNode.i, startNode.j)] == agent.agentId:
-                del self.reservations[(time, startNode.i, startNode.j)]
-            else:
-                break
+        return passers_by  
                 
     def delete_all(self, number):
         to_delete = []
@@ -457,9 +454,8 @@ class ISearch:
             del self.reservations[cell]
 
     def makePrimaryPath(self, curNode, startNode, agent): # path of nodes
-        
-        self.cut_extra(startNode, agent)
 
+        self.lppath[agent.agentId] = []
         wait_action = False
         while curNode != startNode:
             self.lppath[agent.agentId].append(curNode)
@@ -599,10 +595,12 @@ class Solver:
         return _action
     
     def update_malfunctions(self):
-        self.calculated = [0] * self.env.get_num_agents()
         for ind in range(self.env.get_num_agents()):
             if (self.env.agents[ind].malfunction_data['malfunction'] > 1 and self.control_agent.allAgents[ind].malfunctioning == False):
                 replanning_queue = []
+                self.calculated = [0] * self.env.get_num_agents()
+                self.need_post_phase = False
+                obligation_changes = dict()
                 replanning_queue.append(ind)
                 start_replanning_time = time.time()
                 pos = 0
@@ -618,10 +616,38 @@ class Solver:
                     else:
                         self.control_agent.reset_agent(current, self.env.agents[current].position[0], self.env.agents[current].position[1])
                     self.make_obligation(current)
-                    additional = self.search.replan_agent(self.control_agent.allAgents[current], self.env, self.current_step, self.calculated, start_replanning_time)
+                    additional = self.search.replan_agent(self.control_agent.allAgents[current], self.env, self.current_step, self.calculated, start_replanning_time, obligation_changes)
                     for i in range(len(additional)):
                         replanning_queue.append(additional[i])
                     pos += 1
+                if self.need_post_phase:
+                    already_done = set()
+                    for number in replanning_queue:
+                        if number not in already_done:
+                            agent = self.control_agent.allAgents[number]
+                            already_done.add(number)
+                            self.search.delete_all(number)
+                            curStartNode = copy.deepcopy(agent.obligations)
+                            agent.actions = []
+                            agent.current_pos = 0
+                            self.make_obligation(number)
+                            if number in obligation_changes.keys():
+                                agent.obligations = copy.deepcopy(obligation_changes[number])
+                            for step in range(self.current_step, agent.obligations.t):
+                                self.search.reservations[(step, agent.start_i, agent.start_j)] = agent.agentId
+                                agent.actions.append(4)
+                            path_exists = self.search.startSearch(self.control_agent.allAgents[number], self.env, self.current_step)
+                            if not path_exists:
+                                self.search.delete_all(number)
+                                agent.actions = []
+                                agent.current_pos = 0
+                                self.control_agent.allAgents[number].obligations = copy.deepcopy(curStartNode)
+                                for step in range(self.current_step, agent.obligations.t):
+                                    self.search.reservations[(step, agent.start_i, agent.start_j)] = agent.agentId
+                                    agent.actions.append(4)
+                                path_exists = self.search.startSearch(self.control_agent.allAgents[number], self.env, self.current_step)
+                            print(number, path_exists)
+
         for ind in range(self.env.get_num_agents()):
             self.control_agent.allAgents[ind].malfunctioning = (self.env.agents[ind].malfunction_data['malfunction'] > 1)
 
