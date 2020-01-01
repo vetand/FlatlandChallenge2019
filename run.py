@@ -485,7 +485,7 @@ class ISearch:
             else:
                 for step in range(agent.stepsToExitCell):
                     agent.actions.append(1)
-                    
+
 def build_start_order(env): # custom desine of start agents order, there is only one worthwhile variant
             
     answer = []
@@ -496,7 +496,10 @@ def build_start_order(env): # custom desine of start agents order, there is only
         x1, y1 = env.agents[ind].initial_position
         x2, y2 = env.agents[ind].target
         potential = heuristic.get_heuristic(ind, x1, y1, env.agents[ind].direction)
-        queue[getStepsToExitCell(env.agents[ind].speed_data['speed'])].append([potential, ind])
+        if env.agents[ind].speed_data['speed'] >= 0.5 - EPS:
+            queue[getStepsToExitCell(env.agents[ind].speed_data['speed'])].append([potential, ind])
+        else:
+            queue[getStepsToExitCell(env.agents[ind].speed_data['speed'])].append([-potential, ind])
     #queue[1], queue[2], queue[3], queue[4] = queue[4], queue[3], queue[2], queue[1]
     for speed_value in range(1, 5):
         queue[speed_value].sort()
@@ -505,7 +508,6 @@ def build_start_order(env): # custom desine of start agents order, there is only
             answer.append(queue[speed_value][ind][1])
 
     return answer
-
 
 class Solver:
     def __init__(self, env): # initialization of a new simulation
