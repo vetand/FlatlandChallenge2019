@@ -11,7 +11,7 @@ from queue import Queue
 EPS = 0.0001
 INFINITY = 1000000007
 SAFE_LAYER = 4
-START_TIME_LIMIT = 40
+START_TIME_LIMIT = 65
 REPLAN_LIMIT = 120
 MAX_TIME_ONE = 25
 
@@ -188,6 +188,9 @@ class ISearch:
         start_time = time.time()
         for i in range(len(order)): # execute A* with every single agent with 
             agent = control_agent.allAgents[order[i]]
+            if agent.spawned:
+                path_exists[agent.agentId] = True
+                continue
             path_exists[agent.agentId] = self.startSearch(agent, env, current_step)
             if (int(time.time()) - start_time > time_limit):
                 break
@@ -520,8 +523,13 @@ class Solver:
         self.prev_action = [2] * self.env.get_num_agents()
         self.current_order = build_start_order(self.env)
         self.overall_time = 0
-        self.calculated = [0] * self.env.get_num_agents()
-    
+        if (self.env.height + self.env.width) // 2 <= 60: # small map
+            self.maxTime = 350
+        elif (self.env.height + self.env.width) // 2 <= 100: # medium map
+            self.maxTime = 470
+        else: # large map
+            self.maxTime = 600
+
     def make_obligation(self, number): # in fact this is a start Node (which the agent is obligated to reach before it starts to make any decisions)
         if (self.env.agents[number].position != None):
             start_i, start_j = self.env.agents[number].position
@@ -567,10 +575,14 @@ class Solver:
         path_exists = self.search.startallAgents(self.env, self.control_agent, self.current_order, START_TIME_LIMIT, self.current_step)
         new_order = []
         for ind in range(len(self.current_order)):
-            if (path_exists[self.current_order[ind]] == True):
+            if (path_exists[self.current_order[ind]] == False):
                 new_order.append(self.current_order[ind])
         self.current_order = copy.deepcopy(new_order)
         self.answer_build = True
+        
+    def build_medium(self):
+        self.set_obligations()
+        path_exists = self.search.startallAgents(self.env, self.control_agent, self.current_order, START_TIME_LIMIT // 2, self.current_step)
 
     def print_step(self):
         _action = {}
@@ -612,16 +624,15 @@ class Solver:
                     pos += 1
                 for number in second_queue:
                     path_exists = self.search.startSearch(self.control_agent.allAgents[number], self.env, self.current_step)
-                if min(self.env.width, self.env.height) > 65:
-                    continue
                 malfunction_pos = self.env.agents[replanning_queue[0]].position
                 if malfunction_pos == None:
                     malfunction_pos = self.env.agents[replanning_queue[0]].initial_position
                 closest = []
-                # get 5 closest agents and re-plan them due to some rails were clear as the result of malfunction
+                # take 5 closest agents and re-plan them due to some rails were clear as the result of malfunction
                 for ind in range(self.env.get_num_agents()):
                     agent = self.control_agent.allAgents[ind]
-                    if ind not in replanning_queue and not (agent.spawned == True and self.env.agents[ind].position == None) and self.env.agents[ind].speed_data['position_fraction'] < 1 - EPS:
+                    malfunction_just_this_turn = (self.env.agents[ind].malfunction_data['malfunction'] > 1 and self.control_agent.allAgents[ind].malfunctioning == False)
+                    if ind not in replanning_queue and not (agent.spawned == True and self.env.agents[ind].position == None) and not malfunction_just_this_turn:
                         pos = self.env.agents[ind].position
                         if pos == None:
                             pos = self.env.agents[ind].initial_position
@@ -636,6 +647,25 @@ class Solver:
                     self.search.lppath[number] = []
                     self.search.delete_all(number)
                     self.make_obligation(number)
+                    
+                    ###############################################################################################################
+                    if agent.spawned:
+                        if self.search.checkReservation(agent.obligations.i, agent.obligations.j, agent.obligations.t):
+                            agent_this_turn = self.search.get_occupator(agent.obligations.i, agent.obligations.j, agent.obligations.t)
+                        else:
+                            agent_this_turn = -1
+
+                        if self.search.checkReservation(agent.obligations.i, agent.obligations.j, agent.obligations.t - 1):
+                            agent_prev_turn = self.search.get_occupator(agent.obligations.i, agent.obligations.j, agent.obligations.t - 1)
+                        else:
+                            agent_prev_turn = -2
+
+                        if agent_prev_turn == agent_this_turn or (agent_prev_turn > agent.agentId):
+                            while not self.search.need_enter(agent.obligations, agent, agent_this_turn):
+                                self.search.reservations[(agent.obligations.t, agent.start_i, agent.start_j)] = agent.agentId
+                                agent.obligations.t += 1
+                    ###############################################################################################################
+                    
                     for step in range(self.current_step, agent.obligations.t):
                         if agent.spawned:
                             self.search.reservations[(step, agent.start_i, agent.start_j)] = number
@@ -650,7 +680,9 @@ def my_controller(env, path_finder):
             path_finder.control_agent.allAgents[ind].spawned = True
     if path_finder.answer_build == False:
         path_finder.build_on_the_start()
-    elif path_finder.current_step != 0 and path_finder.overall_time <= 400:
+    if (path_finder.maxStep // 8) * 3 == path_finder.current_step:
+        path_finder.build_medium()
+    if path_finder.current_step != 0 and path_finder.overall_time <= path_finder.maxTime:
         path_finder.update_malfunctions()
     return path_finder.print_step()
 
