@@ -330,12 +330,13 @@ class ISearch:
             return False
         return True
         
-    def replan_agent(self, agent, env, current_step, calculated, start_replanning_time):
+    def replan_agent(self, agent, env, current_step, calculated, start_replanning_time, second_queue):
         self.delete_all(agent.agentId)
+        self.lppath[agent.agentId] = []
         if (agent.spawned == False):
             for step in range(current_step, agent.obligations.t):
                 agent.actions.append(4)
-            path_exists = self.startSearch(agent, env, current_step)
+            second_queue.append(agent.agentId)
             return []
         passers_by = []
 
@@ -360,9 +361,9 @@ class ISearch:
         if self.checkReservation(agent.obligations.i, agent.obligations.j, agent.obligations.t - 1):
             agent_prev_turn = self.get_occupator(agent.obligations.i, agent.obligations.j, agent.obligations.t - 1)
         else:
-            agent_prev_turn = -2    
+            agent_prev_turn = -2
 
-        if agent_this_turn == agent_prev_turn or (agent_this_turn != -1 and agent_this_turn < agent.agentId):
+        if agent_prev_turn == agent_this_turn or (agent_prev_turn > agent.agentId):
             while not self.need_enter(agent.obligations, agent, agent_this_turn):
                 if self.checkReservation(agent.start_i, agent.start_j, agent.obligations.t) and self.get_occupator(agent.start_i, agent.start_j, agent.obligations.t) != agent.agentId:
                     passers_by.append(self.get_occupator(agent.start_i, agent.start_j, agent.obligations.t))
@@ -485,7 +486,7 @@ class ISearch:
             else:
                 for step in range(agent.stepsToExitCell):
                     agent.actions.append(1)
-
+                    
 def build_start_order(env): # custom desine of start agents order, there is only one worthwhile variant
             
     answer = []
@@ -496,10 +497,7 @@ def build_start_order(env): # custom desine of start agents order, there is only
         x1, y1 = env.agents[ind].initial_position
         x2, y2 = env.agents[ind].target
         potential = heuristic.get_heuristic(ind, x1, y1, env.agents[ind].direction)
-        if env.agents[ind].speed_data['speed'] >= 0.5 - EPS:
-            queue[getStepsToExitCell(env.agents[ind].speed_data['speed'])].append([potential, ind])
-        else:
-            queue[getStepsToExitCell(env.agents[ind].speed_data['speed'])].append([-potential, ind])
+        queue[getStepsToExitCell(env.agents[ind].speed_data['speed'])].append([potential, ind])
     #queue[1], queue[2], queue[3], queue[4] = queue[4], queue[3], queue[2], queue[1]
     for speed_value in range(1, 5):
         queue[speed_value].sort()
@@ -508,6 +506,7 @@ def build_start_order(env): # custom desine of start agents order, there is only
             answer.append(queue[speed_value][ind][1])
 
     return answer
+
 
 class Solver:
     def __init__(self, env): # initialization of a new simulation
@@ -587,13 +586,14 @@ class Solver:
         return _action
     
     def update_malfunctions(self):
-        self.calculated = [0] * self.env.get_num_agents()
         for ind in range(self.env.get_num_agents()):
             if (self.env.agents[ind].malfunction_data['malfunction'] > 1 and self.control_agent.allAgents[ind].malfunctioning == False):
+                self.calculated = [0] * self.env.get_num_agents()
                 replanning_queue = []
                 replanning_queue.append(ind)
                 start_replanning_time = time.time()
                 pos = 0
+                second_queue = []
                 while pos < len(replanning_queue):
                     if time.time() - start_replanning_time >= REPLAN_LIMIT:
                         break
@@ -606,10 +606,41 @@ class Solver:
                     else:
                         self.control_agent.reset_agent(current, self.env.agents[current].position[0], self.env.agents[current].position[1])
                     self.make_obligation(current)
-                    additional = self.search.replan_agent(self.control_agent.allAgents[current], self.env, self.current_step, self.calculated, start_replanning_time)
+                    additional = self.search.replan_agent(self.control_agent.allAgents[current], self.env, self.current_step, self.calculated, start_replanning_time, second_queue)
                     for i in range(len(additional)):
                         replanning_queue.append(additional[i])
                     pos += 1
+                for number in second_queue:
+                    path_exists = self.search.startSearch(self.control_agent.allAgents[number], self.env, self.current_step)
+                if min(self.env.width, self.env.height) > 65:
+                    continue
+                malfunction_pos = self.env.agents[replanning_queue[0]].position
+                if malfunction_pos == None:
+                    malfunction_pos = self.env.agents[replanning_queue[0]].initial_position
+                closest = []
+                # get 5 closest agents and re-plan them due to some rails were clear as the result of malfunction
+                for ind in range(self.env.get_num_agents()):
+                    agent = self.control_agent.allAgents[ind]
+                    if ind not in replanning_queue and not (agent.spawned == True and self.env.agents[ind].position == None) and self.env.agents[ind].speed_data['position_fraction'] < 1 - EPS:
+                        pos = self.env.agents[ind].position
+                        if pos == None:
+                            pos = self.env.agents[ind].initial_position
+                        closest.append([abs(malfunction_pos[0] - pos[0]) + abs(malfunction_pos[1] - pos[1]), ind])
+                closest.sort()
+                for ind in range(min(5, len(closest))):
+                    number = closest[ind][1]
+                    agent = self.control_agent.allAgents[number]
+                    agent.getAgent(self.env)
+                    agent.current_pos = 0
+                    agent.actions = []
+                    self.search.lppath[number] = []
+                    self.search.delete_all(number)
+                    self.make_obligation(number)
+                    for step in range(self.current_step, agent.obligations.t):
+                        if agent.spawned:
+                            self.search.reservations[(step, agent.start_i, agent.start_j)] = number
+                        agent.actions.append(4)
+                    path_exists = self.search.startSearch(self.control_agent.allAgents[number], self.env, self.current_step)
         for ind in range(self.env.get_num_agents()):
             self.control_agent.allAgents[ind].malfunctioning = (self.env.agents[ind].malfunction_data['malfunction'] > 1)
 
