@@ -12,7 +12,7 @@ EPS = 0.0001
 INFINITY = 1000000007
 SAFE_LAYER = 4
 START_TIME_LIMIT = 65
-REPLAN_LIMIT = 120
+REPLAN_LIMIT = 250
 MAX_TIME_ONE = 25
 
 #####################################################################
@@ -176,9 +176,6 @@ class ISearch:
             self.lppath.append([])
         self.reservations = dict() # reservated cells
         self.maxTime = 5000
-        self.affected = []
-        for ind in range(env.get_num_agents()):
-            self.affected.append([0] * env.get_num_agents())
         self.additional_reserve = 6
 
     def startallAgents(self, env, control_agent, order, time_limit, current_step): # preparations and performing A* on the first turn
@@ -475,23 +472,6 @@ class ISearch:
             self.reservations[(curNode.t, curNode.i, curNode.j)] = agent.agentId
 
         self.lppath[agent.agentId] = self.lppath[agent.agentId][::-1]
-        self.count_affected(agent.agentId)
-        
-    def count_affected(self, number):
-        for ind in range(local_env.get_num_agents()):
-            self.affected[ind][number] = 0
-        cur_pos = 0
-        next_pos = 0
-        while cur_pos < len(self.lppath[number]):
-            while next_pos < len(self.lppath[number]) and self.lppath[number][cur_pos].i == self.lppath[number][next_pos].i and self.lppath[number][cur_pos].j == self.lppath[number][next_pos].j:
-                next_pos += 1
-            if next_pos == len(self.lppath[number]):
-                break
-            if self.checkReservation(self.lppath[number][next_pos].i, self.lppath[number][next_pos].j, self.lppath[number][next_pos].t - 1):
-                self.affected[self.get_occupator(self.lppath[number][next_pos].i, self.lppath[number][next_pos].j, self.lppath[number][next_pos].t - 1)][number] += next_pos - cur_pos
-            elif self.checkReservation(self.lppath[number][next_pos].i, self.lppath[number][next_pos].j, self.lppath[number][next_pos].t - 2):
-                self.affected[self.get_occupator(self.lppath[number][next_pos].i, self.lppath[number][next_pos].j, self.lppath[number][next_pos].t - 2)][number] += next_pos - cur_pos
-            cur_pos = next_pos
 
     def makeFlatlandFriendlyPath(self, agent):
         for ind in range(1, len(self.lppath[agent.agentId])):
@@ -544,11 +524,11 @@ class Solver:
         self.current_order = build_start_order(self.env)
         self.overall_time = 0
         if (self.env.height + self.env.width) // 2 <= 60: # small map
-            self.maxTime = 350
+            self.maxTime = 385
         elif (self.env.height + self.env.width) // 2 <= 100: # medium map
-            self.maxTime = 470
+            self.maxTime = 510
         else: # large map
-            self.maxTime = 600
+            self.maxTime = 650
 
     def make_obligation(self, number): # in fact this is a start Node (which the agent is obligated to reach before it starts to make any decisions)
         if (self.env.agents[number].position != None):
@@ -647,33 +627,19 @@ class Solver:
                 malfunction_pos = self.env.agents[replanning_queue[0]].position
                 if malfunction_pos == None:
                     malfunction_pos = self.env.agents[replanning_queue[0]].initial_position
-                closest1 = []
-                closest1_values = []
-                closest2 = []
-                # take 5 special or closest agents and re-plan them due to some rails were clear as the result of malfunction
+                closest = []
+                # take 5 closest agents and re-plan them due to some rails were clear as the result of malfunction
                 for ind in range(self.env.get_num_agents()):
                     agent = self.control_agent.allAgents[ind]
                     malfunction_just_this_turn = (self.env.agents[ind].malfunction_data['malfunction'] > 1 and self.control_agent.allAgents[ind].malfunctioning == False)
-                    affect_value = self.search.affected[replanning_queue[0]][ind]
-                    for i_agent in closest1_values:
-                        affect_value += self.search.affected[i_agent][ind]
-                    if ind not in replanning_queue and not (agent.spawned == True and self.env.agents[ind].position == None) and not malfunction_just_this_turn and affect_value > 0:
-                        closest1.append([-affect_value, ind])
-                        closest1_values.append(ind)
-                for ind in range(self.env.get_num_agents()):
-                    agent = self.control_agent.allAgents[ind]
-                    malfunction_just_this_turn = (self.env.agents[ind].malfunction_data['malfunction'] > 1 and self.control_agent.allAgents[ind].malfunctioning == False)
-                    if ind not in replanning_queue and not (agent.spawned == True and self.env.agents[ind].position == None) and not malfunction_just_this_turn and ind not in closest1_values:
+                    if ind not in replanning_queue and not (agent.spawned == True and self.env.agents[ind].position == None) and not malfunction_just_this_turn:
                         pos = self.env.agents[ind].position
                         if pos == None:
                             pos = self.env.agents[ind].initial_position
-                        closest2.append([abs(malfunction_pos[0] - pos[0]) + abs(malfunction_pos[1] - pos[1]), ind])
-                closest1.sort()
-                closest2.sort()
-                for item in closest2:
-                    closest1.append(item)
-                for ind in range(min(5, len(closest1))):
-                    number = closest1[ind][1]
+                        closest.append([abs(malfunction_pos[0] - pos[0]) + abs(malfunction_pos[1] - pos[1]), ind])
+                closest.sort()
+                for ind in range(min(3, len(closest))):
+                    number = closest[ind][1]
                     agent = self.control_agent.allAgents[number]
                     agent.getAgent(self.env)
                     agent.current_pos = 0
