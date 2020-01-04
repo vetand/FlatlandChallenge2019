@@ -386,7 +386,7 @@ class ISearch:
             if calculated[agent.agentId] == 15:
                 for i in range(local_env.get_num_agents()):
                     calculated[i] -= 1
-                calculated[agent.agentId] = 0
+                calculated[agent.agentId] = 1
             for step in range(agent.obligations.t, agent.obligations.t + self.additional_reserve * (calculated[agent.agentId] - 1) + agent.stepsToExitCell + 1):
                 if self.checkReservation(agent.obligations.i, agent.obligations.j, step) and self.get_occupator(agent.obligations.i, agent.obligations.j, step) != agent.agentId:
                     passers_by.append(self.get_occupator(agent.obligations.i, agent.obligations.j, step))
@@ -528,11 +528,11 @@ class Solver:
         self.current_order = build_start_order(self.env)
         self.overall_time = 0
         if (self.env.height + self.env.width) // 2 <= 60: # small map
-            self.maxTime = 520
+            self.maxTime = 550
         elif (self.env.height + self.env.width) // 2 <= 100: # medium map
-            self.maxTime = 590
+            self.maxTime = 650
         else: # large map
-            self.maxTime = 760
+            self.maxTime = 800
 
     def make_obligation(self, number): # in fact this is a start Node (which the agent is obligated to reach before it starts to make any decisions)
         if (self.env.agents[number].position != None):
@@ -629,10 +629,8 @@ class Solver:
                 for number in second_queue:
                     path_exists = self.search.startSearch(self.control_agent.allAgents[number], self.env, self.current_step)
                 closest_quantity = 0
-                if self.maxTime == 520:
-                    closest_quantity = 8
-                elif self.current_step > self.maxStep // 2:
-                    closest_quantity = 2
+                if self.maxTime == 550:
+                    closest_quantity = 9
                 malfunction_pos = self.env.agents[replanning_queue[0]].position
                 if malfunction_pos == None:
                     malfunction_pos = self.env.agents[replanning_queue[0]].initial_position
