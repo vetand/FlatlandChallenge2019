@@ -11,7 +11,7 @@ from queue import Queue
 EPS = 0.0001
 INFINITY = 1000000007
 SAFE_LAYER = 4
-START_TIME_LIMIT = 55
+START_TIME_LIMIT = 65
 REPLAN_LIMIT = 250
 MAX_TIME_ONE = 25
 
@@ -383,6 +383,10 @@ class ISearch:
                         self.delete_path(passers_by[-1])
             
         if (calculated[agent.agentId] >= 2):
+            if calculated[agent.agentId] == 15:
+                for i in range(local_env.get_num_agents()):
+                    calculated[i] -= 1
+                calculated[agent.agentId] = 0
             for step in range(agent.obligations.t, agent.obligations.t + self.additional_reserve * (calculated[agent.agentId] - 1) + agent.stepsToExitCell + 1):
                 if self.checkReservation(agent.obligations.i, agent.obligations.j, step) and self.get_occupator(agent.obligations.i, agent.obligations.j, step) != agent.agentId:
                     passers_by.append(self.get_occupator(agent.obligations.i, agent.obligations.j, step))
@@ -524,11 +528,11 @@ class Solver:
         self.current_order = build_start_order(self.env)
         self.overall_time = 0
         if (self.env.height + self.env.width) // 2 <= 60: # small map
-            self.maxTime = 440
+            self.maxTime = 520
         elif (self.env.height + self.env.width) // 2 <= 100: # medium map
-            self.maxTime = 560
+            self.maxTime = 590
         else: # large map
-            self.maxTime = 700
+            self.maxTime = 760
 
     def make_obligation(self, number): # in fact this is a start Node (which the agent is obligated to reach before it starts to make any decisions)
         if (self.env.agents[number].position != None):
@@ -624,8 +628,11 @@ class Solver:
                     pos += 1
                 for number in second_queue:
                     path_exists = self.search.startSearch(self.control_agent.allAgents[number], self.env, self.current_step)
-                if not self.maxTime == 440:
-                    continue
+                closest_quantity = 0
+                if self.maxTime == 520:
+                    closest_quantity = 8
+                elif self.current_step > self.maxStep // 2:
+                    closest_quantity = 2
                 malfunction_pos = self.env.agents[replanning_queue[0]].position
                 if malfunction_pos == None:
                     malfunction_pos = self.env.agents[replanning_queue[0]].initial_position
@@ -640,7 +647,7 @@ class Solver:
                             pos = self.env.agents[ind].initial_position
                         closest.append([abs(malfunction_pos[0] - pos[0]) + abs(malfunction_pos[1] - pos[1]), ind])
                 closest.sort()
-                for ind in range(min(6, len(closest))):
+                for ind in range(min(closest_quantity, len(closest))):
                     number = closest[ind][1]
                     agent = self.control_agent.allAgents[number]
                     agent.getAgent(self.env)
