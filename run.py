@@ -524,7 +524,7 @@ class Solver:
         self.current_order = build_start_order(self.env)
         self.overall_time = 0
         if (self.env.height + self.env.width) // 2 <= 60: # small map
-            self.maxTime = 425
+            self.maxTime = 440
         elif (self.env.height + self.env.width) // 2 <= 100: # medium map
             self.maxTime = 560
         else: # large map
@@ -624,7 +624,7 @@ class Solver:
                     pos += 1
                 for number in second_queue:
                     path_exists = self.search.startSearch(self.control_agent.allAgents[number], self.env, self.current_step)
-                if not self.maxTime == 425:
+                if not self.maxTime == 440:
                     continue
                 malfunction_pos = self.env.agents[replanning_queue[0]].position
                 if malfunction_pos == None:
@@ -640,7 +640,7 @@ class Solver:
                             pos = self.env.agents[ind].initial_position
                         closest.append([abs(malfunction_pos[0] - pos[0]) + abs(malfunction_pos[1] - pos[1]), ind])
                 closest.sort()
-                for ind in range(min(3, len(closest))):
+                for ind in range(min(6, len(closest))):
                     number = closest[ind][1]
                     agent = self.control_agent.allAgents[number]
                     agent.getAgent(self.env)
