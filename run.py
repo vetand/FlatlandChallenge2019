@@ -11,7 +11,7 @@ from queue import Queue
 EPS = 0.0001
 INFINITY = 1000000007
 SAFE_LAYER = 4
-START_TIME_LIMIT = 65
+START_TIME_LIMIT = 55
 REPLAN_LIMIT = 250
 MAX_TIME_ONE = 25
 
@@ -524,11 +524,11 @@ class Solver:
         self.current_order = build_start_order(self.env)
         self.overall_time = 0
         if (self.env.height + self.env.width) // 2 <= 60: # small map
-            self.maxTime = 385
+            self.maxTime = 425
         elif (self.env.height + self.env.width) // 2 <= 100: # medium map
-            self.maxTime = 510
+            self.maxTime = 560
         else: # large map
-            self.maxTime = 650
+            self.maxTime = 700
 
     def make_obligation(self, number): # in fact this is a start Node (which the agent is obligated to reach before it starts to make any decisions)
         if (self.env.agents[number].position != None):
@@ -582,7 +582,7 @@ class Solver:
         
     def build_medium(self):
         self.set_obligations()
-        path_exists = self.search.startallAgents(self.env, self.control_agent, self.current_order, START_TIME_LIMIT // 2, self.current_step)
+        path_exists = self.search.startallAgents(self.env, self.control_agent, self.current_order, START_TIME_LIMIT * 3, self.current_step)
 
     def print_step(self):
         _action = {}
@@ -624,6 +624,8 @@ class Solver:
                     pos += 1
                 for number in second_queue:
                     path_exists = self.search.startSearch(self.control_agent.allAgents[number], self.env, self.current_step)
+                if not self.maxTime == 425:
+                    continue
                 malfunction_pos = self.env.agents[replanning_queue[0]].position
                 if malfunction_pos == None:
                     malfunction_pos = self.env.agents[replanning_queue[0]].initial_position
