@@ -525,10 +525,13 @@ class Solver:
         self.overall_time = 0
         if (self.env.height + self.env.width) // 2 <= 60: # small map
             self.maxTime = 620
+            REPLAN_LIMIT = 250
         elif (self.env.height + self.env.width) // 2 <= 100: # medium map
-            self.maxTime = 850
+            self.maxTime = 1000
+            REPLAN_LIMIT = 300
         else: # large map
-            self.maxTime = 1150
+            self.maxTime = 1300
+            REPLAN_LIMIT = 380
 
     def make_obligation(self, number): # in fact this is a start Node (which the agent is obligated to reach before it starts to make any decisions)
         if (self.env.agents[number].position != None):
@@ -624,8 +627,6 @@ class Solver:
                     pos += 1
                 for number in second_queue:
                     path_exists = self.search.startSearch(self.control_agent.allAgents[number], self.env, self.current_step)
-                if not self.maxTime == 620:
-                    continue
                 malfunction_pos = self.env.agents[replanning_queue[0]].position
                 if malfunction_pos == None:
                     malfunction_pos = self.env.agents[replanning_queue[0]].initial_position
@@ -640,7 +641,12 @@ class Solver:
                             pos = self.env.agents[ind].initial_position
                         closest.append([abs(malfunction_pos[0] - pos[0]) + abs(malfunction_pos[1] - pos[1]), ind])
                 closest.sort()
-                for ind in range(min(6, len(closest))):
+                closest_number = 0
+                if self.maxTime == 620:
+                    closest_number = 6
+                elif self.overall_time < self.maxTime // 2 and self.current_step > self.maxStep // 2:
+                    closest_number = 4
+                for ind in range(min(closest_number, len(closest))):
                     number = closest[ind][1]
                     agent = self.control_agent.allAgents[number]
                     agent.getAgent(self.env)
