@@ -10,7 +10,7 @@ import numpy as np
 from queue import Queue
 EPS = 0.0001
 INFINITY = 1000000007
-SAFE_LAYER = 4
+SAFE_LAYER = 4 # not used anymore
 START_TIME_LIMIT = 60
 REPLAN_LIMIT = 250
 MAX_TIME_ONE = 25
@@ -41,10 +41,10 @@ class Agent: # agent general and instant information
         self.actions = [] # personal plan
         self.obligations = None
         self.agentId = agentId # ID (with the same order, as flatland has)
-        self.spawned = False
-        self.malfunctioning = False
+        self.spawned = False # spawned = entered the simulation, also is True when the agent finished
+        self.malfunctioning = False # helps the controller recognize the first step of a malunction
 
-    def getAgent(self, env):
+    def getAgent(self, env): # read the agent info from RailEnv structure to more solution-friendly format
         if (env.agents[self.agentId].position == None):
             self.start_i = env.agents[self.agentId].initial_position[0]
             self.start_j = env.agents[self.agentId].initial_position[1]
@@ -57,9 +57,9 @@ class Agent: # agent general and instant information
 
         self.dir = env.agents[self.agentId].direction
         self.stepsToExitCell = getStepsToExitCell(env.agents[self.agentId].speed_data["speed"]) # number of steps required to
-                                                                                 # move to next cell
+                                                                                                # move to next cell
 
-class Agents:
+class Agents: # this class contais the information about all agents
     def __init__(self):
         self.allAgents = [] # array of agents
         self.size = 0
@@ -80,7 +80,8 @@ class Agents:
         self.allAgents[number].start_i = new_i
         self.allAgents[number].start_j = new_j
 
-class Node: # low-level code: Node class of a search process (no changes)
+class Node: # low-level code: Node class of a search process
+            # this structure is typically used in A* algorithms
     def __init__(self, i, j, dir):
         self.i = i
         self.j = j
@@ -122,6 +123,7 @@ class Node_h: # low-level code: Node class for advanced heuristic finder
         self.time = time
         
 class Global_H: # advanced heuristic - shortest path from this cell to finish with no other agents
+                # it makes A* ~10 times faster then A* with usual heuristic (like |x_2 - x_1| + |y_2 - y_1|)
     def __init__(self, env):
         self.database = dict()
         self.env = env
@@ -169,16 +171,17 @@ class Global_H: # advanced heuristic - shortest path from this cell to finish wi
         else:
             return INFINITY            
 
-class ISearch:
+class ISearch: # this is the main path finding class which contains the information about agent paths, rservations,
+               # performs the start planning, rebuilds paths after malfunction occurences etc.
     def __init__(self, env):
         self.lppath = [] # path of low-level nodes
         for ind in range(env.get_num_agents()):
             self.lppath.append([])
         self.reservations = dict() # reservated cells
         self.maxTime = 5000
-        self.additional_reserve = 6
+        self.additional_reserve = 6 # magic constant
 
-    def startallAgents(self, env, control_agent, order, time_limit, current_step): # preparations and performing A* on the first turn
+    def startallAgents(self, env, control_agent, order, time_limit, current_step): # preparations and performing A* in the first turn
 
         # path exists is a feedback for high-level class
         path_exists = []
@@ -186,13 +189,14 @@ class ISearch:
             path_exists.append(False)       
 
         start_time = time.time()
-        for i in range(len(order)): # execute A* with every single agent with 
+        for i in range(len(order)): # execute A* with every single agent
             agent = control_agent.allAgents[order[i]]
             if agent.spawned:
                 path_exists[agent.agentId] = True
                 continue
             path_exists[agent.agentId] = self.startSearch(agent, env, current_step)
-            if (int(time.time()) - start_time > time_limit):
+            if (int(time.time()) - start_time > time_limit): # sometimes start planning takes too much time, so it is reasonable to 
+                                                             # put it off (for slow agents) for a later time
                 break
         return path_exists
 
@@ -207,7 +211,7 @@ class ISearch:
 
     def startSearch(self, agent, env, current_step):
 
-        # start of A* algorithm
+        # start of A* algorithm - usual implementation
         startNode = agent.obligations
         finNode = Node(agent.fin_i, agent.fin_j, agent.dir)
 
@@ -253,7 +257,7 @@ class ISearch:
         else:
             return False
         
-    def correct_point(self, scNode, agent):
+    def correct_point(self, scNode, agent): # is comparable with FLATland
         for step in range(agent.stepsToExitCell):
             if self.checkReservation(scNode.i, scNode.j, scNode.t + step) and self.get_occupator(scNode.i, scNode.j, scNode.t + step) != agent.agentId:
                 return False
@@ -316,7 +320,7 @@ class ISearch:
             successors.append(scNode)
         return successors
     
-    def delete_path(self, number):
+    def delete_path(self, number): # delete path except of some start steps
         for ind in range(1, len(self.lppath[number])):
             curNode = self.lppath[number][ind]
             for step in range(path_finder.control_agent.allAgents[number].stepsToExitCell):
@@ -324,7 +328,8 @@ class ISearch:
                     del self.reservations[(curNode.t + step, curNode.i, curNode.j)]
         self.lppath[number] = []
         
-    def need_enter(self, scNode, agent, first_agent):
+    def need_enter(self, scNode, agent, first_agent): # according to strange flatland rules, some mistakes (when agent tries to enter occupied cell)
+                                                      # are unavoidable, so we need to track these cases
         if self.checkReservation(agent.obligations.i, agent.obligations.j, agent.obligations.t):
             other_number = self.get_occupator(agent.obligations.i, agent.obligations.j, agent.obligations.t)
             if other_number != agent.agentId and (other_number < agent.agentId or other_number == first_agent):
@@ -333,7 +338,9 @@ class ISearch:
             return False
         return True
         
-    def replan_agent(self, agent, env, current_step, calculated, start_replanning_time, second_queue):
+    def replan_agent(self, agent, env, current_step, calculated, start_replanning_time, second_queue): # re-builds path for current agent
+                                                                                                       # this is the most sophisticated and
+                                                                                                       # the worst part of a project
         self.delete_all(agent.agentId)
         self.lppath[agent.agentId] = []
         if (agent.spawned == False):
@@ -342,6 +349,10 @@ class ISearch:
             second_queue.append(agent.agentId)
             return []
         passers_by = []
+        
+        # check if there are any agents, which walk through the malfunctioning or re-planned agent
+        # while it is staying on the start point (according to current position in RailEnv)
+        # if there are any, add them to queue [passers_by] add delete their path
 
         for step in range(current_step, agent.obligations.t):
             if self.checkReservation(agent.start_i, agent.start_j, step) and self.get_occupator(agent.start_i, agent.start_j, step) != agent.agentId:
@@ -365,6 +376,9 @@ class ISearch:
             agent_prev_turn = self.get_occupator(agent.obligations.i, agent.obligations.j, agent.obligations.t - 1)
         else:
             agent_prev_turn = -2
+            
+        # sometimes the agent will automatically try to enter the occupied cell
+        # here this case is tracked
 
         if agent_prev_turn == agent_this_turn or (agent_prev_turn > agent.agentId):
             while not self.need_enter(agent.obligations, agent, agent_this_turn):
@@ -381,8 +395,11 @@ class ISearch:
                     if other_number < agent.agentId:
                         passers_by.append(other_number)
                         self.delete_path(passers_by[-1])
+                        
+        # sometimes the algorithm enters the infinite loop, so add a few steps of waiting to this agent to break that
+        # unfortunatelly, this approach doesn`t solve the stability problem perfectly
             
-        if (calculated[agent.agentId] >= 2):
+        if (calculated[agent.agentId] >= 2): # calculated parameter is a measure of 
             for step in range(agent.obligations.t, agent.obligations.t + self.additional_reserve * (calculated[agent.agentId] - 1) + agent.stepsToExitCell + 1):
                 if self.checkReservation(agent.obligations.i, agent.obligations.j, step) and self.get_occupator(agent.obligations.i, agent.obligations.j, step) != agent.agentId:
                     passers_by.append(self.get_occupator(agent.obligations.i, agent.obligations.j, step))
@@ -391,6 +408,8 @@ class ISearch:
             agent.obligations.t = agent.obligations.t + self.additional_reserve * (calculated[agent.agentId] - 1)
             for step in range(self.additional_reserve * (calculated[agent.agentId] - 1)):
                 agent.actions.append(4)
+                
+        # check if the start point of the agent is correct (when the agents starts to make any decisions)
                 
         if self.checkReservation(agent.obligations.i, agent.obligations.j, agent.obligations.t - 1):
             other_number = self.get_occupator(agent.obligations.i, agent.obligations.j, agent.obligations.t - 1)
@@ -408,6 +427,9 @@ class ISearch:
             if other_number < agent.agentId:
                 passers_by.append(other_number)
                 self.delete_path(passers_by[-1])
+                
+        # if the start point is correct, but it still inpossible to build any path
+        # then take the first agent, which goes through the start point and delete it`s path
 
         path_exists = self.startSearch(agent, env, current_step)
         while path_exists == False:
@@ -438,9 +460,9 @@ class ISearch:
                 break
 
             path_exists = self.startSearch(agent, env, current_step)
-        return passers_by
+        return passers_by # these agents will be add to replanning queue
                 
-    def delete_all(self, number):
+    def delete_all(self, number): # delete whole path with all reservations
         to_delete = []
         for cell in self.reservations:
             if self.reservations[cell] == number:
@@ -490,8 +512,9 @@ class ISearch:
                 for step in range(agent.stepsToExitCell):
                     agent.actions.append(1)
                     
-def build_start_order(env): # custom desine of start agents order, there is only one worthwhile variant
-            
+def build_start_order(env): # custom desine of start agents order, firstly sort by speed, then by distance to finishes
+                            # it`s prooved that this gets minimum summary of path length (on average)
+                            # which is mostly suitable for challenge rules 
     answer = []
     queue = []
     for speed_value in range(5):
@@ -501,7 +524,6 @@ def build_start_order(env): # custom desine of start agents order, there is only
         x2, y2 = env.agents[ind].target
         potential = heuristic.get_heuristic(ind, x1, y1, env.agents[ind].direction)
         queue[getStepsToExitCell(env.agents[ind].speed_data['speed'])].append([potential, ind])
-    #queue[1], queue[2], queue[3], queue[4] = queue[4], queue[3], queue[2], queue[1]
     for speed_value in range(1, 5):
         queue[speed_value].sort()
     for speed_value in range(1, 5):
@@ -511,7 +533,7 @@ def build_start_order(env): # custom desine of start agents order, there is only
     return answer
 
 
-class Solver:
+class Solver: # main class
     def __init__(self, env): # initialization of a new simulation
         self.env = env
         self.control_agent = Agents()
@@ -573,7 +595,7 @@ class Solver:
             else:
                 self.control_agent.allAgents[ind].start_i, self.control_agent.allAgents[ind].start_j = self.env.agents[ind].initial_position
         
-    def build_on_the_start(self):
+    def build_on_the_start(self): # prepare paths before the simulation begins
         self.set_obligations()
         path_exists = self.search.startallAgents(self.env, self.control_agent, self.current_order, START_TIME_LIMIT, self.current_step)
         new_order = []
@@ -583,11 +605,14 @@ class Solver:
         self.current_order = copy.deepcopy(new_order)
         self.answer_build = True
         
-    def build_medium(self):
+    def build_medium(self): # when the map is too big
+                            # start planning takes too much time
+                            # but slow agents can enter the simulation later
+                            # if we do that here we save a lot of time
         self.set_obligations()
         path_exists = self.search.startallAgents(self.env, self.control_agent, self.current_order, START_TIME_LIMIT * 3, self.current_step)
 
-    def print_step(self):
+    def print_step(self): # send report to FLATland
         _action = {}
         for ind in range(self.env.get_num_agents()):
             agent = self.control_agent.allAgents[ind]
@@ -600,15 +625,18 @@ class Solver:
         self.current_step += 1
         return _action
     
-    def update_malfunctions(self):
+    def update_malfunctions(self): # check if there are any malfunctions in this turn and re-planning control
         for ind in range(self.env.get_num_agents()):
             if (self.env.agents[ind].malfunction_data['malfunction'] > 1 and self.control_agent.allAgents[ind].malfunctioning == False):
                 self.calculated = [0] * self.env.get_num_agents()
-                replanning_queue = []
+                replanning_queue = [] # malfunction cause some conflict between agents
+                                      # re-build paths one-by-one starting with malfunctioning agent
+                                      # any re-build can cause other conflicts, so keep 
+                                      # re-planning until there won`t be any conflicts (and all path will be valid)
                 replanning_queue.append(ind)
                 start_replanning_time = time.time()
                 pos = 0
-                second_queue = []
+                second_queue = [] # queue of not spawned agents - we can build their paths later
                 while pos < len(replanning_queue):
                     if time.time() - start_replanning_time >= REPLAN_LIMIT:
                         break
@@ -631,7 +659,8 @@ class Solver:
                 if malfunction_pos == None:
                     malfunction_pos = self.env.agents[replanning_queue[0]].initial_position
                 closest = []
-                # take 5 closest agents and re-plan them due to some rails were clear as the result of malfunction
+                # take a few closest agents and re-plan them due to some rails were clear as the result of malfunction
+                # it added a few percent to the challenge result
                 for ind in range(self.env.get_num_agents()):
                     agent = self.control_agent.allAgents[ind]
                     malfunction_just_this_turn = (self.env.agents[ind].malfunction_data['malfunction'] > 1 and self.control_agent.allAgents[ind].malfunctioning == False)
@@ -655,8 +684,7 @@ class Solver:
                     self.search.lppath[number] = []
                     self.search.delete_all(number)
                     self.make_obligation(number)
-                    
-                    ###############################################################################################################
+
                     if agent.spawned:
                         if self.search.checkReservation(agent.obligations.i, agent.obligations.j, agent.obligations.t):
                             agent_this_turn = self.search.get_occupator(agent.obligations.i, agent.obligations.j, agent.obligations.t)
@@ -672,13 +700,13 @@ class Solver:
                             while not self.search.need_enter(agent.obligations, agent, agent_this_turn):
                                 self.search.reservations[(agent.obligations.t, agent.start_i, agent.start_j)] = agent.agentId
                                 agent.obligations.t += 1
-                    ###############################################################################################################
                     
                     for step in range(self.current_step, agent.obligations.t):
                         if agent.spawned:
                             self.search.reservations[(step, agent.start_i, agent.start_j)] = number
                         agent.actions.append(4)
                     path_exists = self.search.startSearch(self.control_agent.allAgents[number], self.env, self.current_step)
+        # don`t forget to remember active malfunctions
         for ind in range(self.env.get_num_agents()):
             self.control_agent.allAgents[ind].malfunctioning = (self.env.agents[ind].malfunction_data['malfunction'] > 1)
 
